@@ -3,10 +3,22 @@ import re
 import time
 import json
 import socket
+import asyncio
+import logging
 import ipaddress
 import urllib.parse
 from typing import Optional, List, Dict, Any, Tuple
 from contextlib import asynccontextmanager
+
+# ------------------------------------------------------------------------------
+# Structured Logging
+# ------------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S"
+)
+logger = logging.getLogger("metadata-api")
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -46,8 +58,8 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.3.0",
+    description="Ultra-fast, enterprise REST API with Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    version="2.4.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -64,24 +76,35 @@ app.add_middleware(
 
 RAPIDAPI_PROXY_SECRET = os.getenv("RAPIDAPI_PROXY_SECRET", None)
 
+# TRUST_PROXY: Set to "true" only when deployed behind a trusted reverse proxy
+# (e.g. Render, Fly.io, Nginx). Enables X-Forwarded-For for real client IP.
+# When false (default), uses request.client.host only — prevents IP spoofing.
+TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
+
 # ------------------------------------------------------------------------------
 # Native Application-Level IP Rate Limiter (60 Requests / Minute per IP)
 # ------------------------------------------------------------------------------
 ip_rate_tracker: TTLCache = TTLCache(maxsize=10000, ttl=60)
 
 def check_ip_rate_limit(request: Request):
-    """Enforces native 60 requests/minute limit per client IP address."""
-    client_ip = request.client.host if request.client else "127.0.0.1"
+    """Enforces native 60 requests/minute limit per client IP address.
     
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
+    X-Forwarded-For is only trusted when TRUST_PROXY=true env var is set,
+    preventing IP spoofing bypasses in non-proxied deployments.
+    """
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    if TRUST_PROXY:
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            client_ip = forwarded_for.split(",")[0].strip()
 
     current_time = time.time()
     history = ip_rate_tracker.get(client_ip, [])
     valid_history = [t for t in history if current_time - t < 60]
 
     if len(valid_history) >= 60:
+        logger.warning("Rate limit exceeded for IP: %s", client_ip)
         raise HTTPException(
             status_code=429,
             detail="Rate limit exceeded: 60 requests per minute limit reached per client IP address."
@@ -309,10 +332,12 @@ def normalize_and_validate_url(url: str) -> str:
 # ------------------------------------------------------------------------------
 # IP-Pinned Anti-SSRF Shield (Prevents DNS Rebinding / TOCTOU Race Conditions)
 # ------------------------------------------------------------------------------
-def validate_url_ssrf(url: str) -> Tuple[str, str]:
+async def validate_url_ssrf(url: str) -> Tuple[str, str]:
     """
-    Resolves DNS hostname ONCE, validates IP address against private/loopback/cloud-metadata ranges,
-    and returns a tuple of (ip_pinned_url, original_hostname) to eliminate DNS Rebinding completely.
+    Async IP-Pinned Anti-SSRF Shield.
+    Resolves DNS hostname ONCE via asyncio.to_thread (non-blocking),
+    validates IP against private/loopback/cloud-metadata ranges,
+    and returns (ip_pinned_url, original_hostname) to eliminate DNS Rebinding.
     """
     url = normalize_and_validate_url(url)
     parsed = urllib.parse.urlparse(url)
@@ -327,20 +352,23 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
 
     hostname_lower = hostname.lower()
     if hostname_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254"):
+        logger.warning("SSRF block — loopback/internal hostname: %s", hostname)
         raise HTTPException(
             status_code=400,
             detail="SSRF Protection: Access to loopback, internal, or cloud metadata hostnames is forbidden."
         )
 
     port = parsed.port or (443 if scheme == "https" else 80)
-    
-    # 1. Resolve DNS ONCE with 5-minute TTL DNS Caching
+
+    # 1. Resolve DNS ONCE (non-blocking) with 5-minute TTL DNS Caching
     dns_key = (hostname, port)
     if dns_key in dns_cache:
         addr_info = dns_cache[dns_key]
     else:
         try:
-            addr_info = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            addr_info = await asyncio.to_thread(
+                socket.getaddrinfo, hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM
+            )
             dns_cache[dns_key] = addr_info
         except socket.gaierror:
             raise HTTPException(
@@ -348,7 +376,7 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
                 detail=f"SSRF Protection: Unable to resolve hostname '{hostname}' via DNS."
             )
 
-    # 2. Validate all resolved IP addresses
+    # 2. Validate all resolved IP addresses against private/reserved ranges
     resolved_ip = None
     for item in addr_info:
         ip_str = item[4][0]
@@ -363,6 +391,7 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
                 ip_obj.is_unspecified or
                 str(ip_obj) == "169.254.169.254"
             ):
+                logger.warning("SSRF block — private IP: %s -> %s", hostname, ip_str)
                 raise HTTPException(
                     status_code=400,
                     detail=f"SSRF Protection: Target domain resolves to private/internal IP address ({ip_str}), which is forbidden."
@@ -378,12 +407,11 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
             detail="SSRF Protection: No valid public IP address found for target domain."
         )
 
-    # 3. Construct IP-Pinned Connection URL
+    # 3. Construct IP-Pinned Connection URL (eliminates second DNS resolution)
     path_and_query = parsed.path or "/"
     if parsed.query:
         path_and_query += "?" + parsed.query
 
-    # Format IPv6 brackets if needed
     formatted_ip = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
     ip_pinned_url = f"{scheme}://{formatted_ip}:{port}{path_and_query}"
 
@@ -476,6 +504,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
         cached_data["execution_time_ms"] = 0.01
+        logger.info("Cache hit: %s", cache_key)
         return cached_data
 
     clean_ua = sanitize_user_agent(user_agent)
@@ -501,11 +530,12 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     status_code = 200
     final_url = url
     resp_headers: Dict[str, str] = {}
+    response = None  # Initialized to prevent UnboundLocalError on empty redirect loops
 
     try:
         while redirect_count <= MAX_REDIRECTS:
             # IP-Pinning Anti-SSRF Validation (Eliminates DNS Rebinding & Redirect SSRF)
-            ip_pinned_url, original_hostname = validate_url_ssrf(current_url)
+            ip_pinned_url, original_hostname = await validate_url_ssrf(current_url)
 
             req_headers = {
                 "User-Agent": clean_ua,
@@ -516,9 +546,9 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             }
 
             async with client.stream(
-                "GET", 
-                ip_pinned_url, 
-                headers=req_headers, 
+                "GET",
+                ip_pinned_url,
+                headers=req_headers,
                 extensions={"sni_hostname": original_hostname},
                 follow_redirects=False
             ) as response:
@@ -539,14 +569,18 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                 status_code = response.status_code
                 final_url = current_url
                 resp_headers = {k.lower(): v for k, v in response.headers.items()}
-                
+
+                # Optimized streaming: use tail_buffer to search for </head>
+                # without reconstructing the full buffer on every chunk.
+                tail_buffer = b""
                 async for chunk in response.aiter_bytes():
                     content_chunks.append(chunk)
                     total_bytes += len(chunk)
                     if total_bytes >= MAX_BYTES:
                         break
-                    joined_so_far = b"".join(content_chunks)
-                    if b"</head>" in joined_so_far.lower() and total_bytes >= 16 * 1024:
+                    # Only keep last 128 bytes to check for </head> sentinel
+                    tail_buffer = (tail_buffer + chunk)[-128:]
+                    if b"</head>" in tail_buffer.lower() and total_bytes >= 16 * 1024:
                         break
                 break
 
@@ -564,6 +598,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         err_msg = str(e)
         if 'original_hostname' in locals() and original_hostname:
             err_msg = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', original_hostname, err_msg)
+        logger.error("Fetch error for %s: %s", url, err_msg)
         raise HTTPException(
             status_code=400,
             detail=f"Unable to access target URL: {err_msg}"
@@ -628,36 +663,37 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     
     a_nodes = tree.css('a[href]')
     final_domain = urllib.parse.urlparse(final_url).netloc.lower()
-    
+
     internal_links = []
     external_links = []
-    
-    for a in a_nodes:
-        raw_href = a.attributes.get('href')
-        href = raw_href.strip() if raw_href else ""
-        if not href or href.startswith('#') or href.startswith('javascript:'):
-            continue
-        full_link = urllib.parse.urljoin(final_url, href)
-        link_domain = urllib.parse.urlparse(full_link).netloc.lower()
-        if link_domain == final_domain or not link_domain:
-            if full_link not in internal_links and len(internal_links) < 50:
-                internal_links.append(full_link)
-        else:
-            if full_link not in external_links and len(external_links) < 50:
-                external_links.append(full_link)
-
     social_links: Dict[str, Optional[str]] = {platform: None for platform in SOCIAL_DOMAINS}
     mailto_emails = []
     tel_phones = []
-    
+
+    # Single-pass loop over all <a href> nodes for links, socials, emails, and phones
     for a in a_nodes:
         raw_href = a.attributes.get('href')
         href = raw_href.strip() if raw_href else ""
         if not href:
             continue
+
+        # Classify links (skip anchors and inline JS)
+        if not href.startswith('#') and not href.startswith('javascript:'):
+            full_link = urllib.parse.urljoin(final_url, href)
+            link_domain = urllib.parse.urlparse(full_link).netloc.lower()
+            if link_domain == final_domain or not link_domain:
+                if full_link not in internal_links and len(internal_links) < 50:
+                    internal_links.append(full_link)
+            else:
+                if full_link not in external_links and len(external_links) < 50:
+                    external_links.append(full_link)
+
+        # Detect social profiles
         for platform, pattern in SOCIAL_DOMAINS.items():
             if not social_links[platform] and pattern.search(href):
                 social_links[platform] = href
+
+        # Collect mailto: emails and tel: phone numbers
         if MAILTO_HREF_REGEX.search(href):
             mail = href.replace('mailto:', '').split('?')[0].strip()
             if mail and mail not in mailto_emails:
@@ -688,8 +724,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             detected_tech.append(tech)
 
     json_ld_schemas = []
-    raw_tree = HTMLParser(html_content)
-    for script in raw_tree.css('script[type="application/ld+json"]'):
+    for script in tree.css('script[type="application/ld+json"]'):
         try:
             stxt = script.text()
             if stxt:
@@ -701,7 +736,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             pass
 
     rss_feeds = []
-    for link in raw_tree.css('link[type]'):
+    for link in tree.css('link[type]'):
         raw_t = link.attributes.get('type')
         t_attr = raw_t.lower() if raw_t else ""
         if 'rss' in t_attr or 'atom' in t_attr or 'xml' in t_attr:
@@ -1015,9 +1050,10 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.3.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Sanitized IP-Pinned Security Shield",
-        "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
+        "version": "2.4.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Sanitized IP-Pinned Security Shield",
+        "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
+        "trust_proxy": TRUST_PROXY
     }
 
 
