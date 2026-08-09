@@ -244,14 +244,18 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
     Resolves DNS hostname ONCE, validates IP address against private/loopback/cloud-metadata ranges,
     and returns a tuple of (ip_pinned_url, original_hostname) to eliminate DNS Rebinding completely.
     """
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
     parsed = urllib.parse.urlparse(url)
-    scheme = (parsed.scheme or "https").lower()
+    scheme = parsed.scheme.lower()
     
     if scheme not in ("http", "https"):
         raise HTTPException(
             status_code=400,
             detail="SSRF Protection: Only 'http' and 'https' protocols are permitted."
         )
+
 
     hostname = parsed.hostname
     if not hostname:
@@ -320,6 +324,8 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
     return ip_pinned_url, hostname
 
 def normalize_cache_url(url: str) -> str:
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
     netloc = parsed.netloc.lower()
@@ -398,8 +404,12 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
     start_time = time.time()
     
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
     # Normalized Cache Lookup
     cache_key = normalize_cache_url(url)
+
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
         cached_data["execution_time_ms"] = 0.01

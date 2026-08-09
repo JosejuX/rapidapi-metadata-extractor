@@ -47,6 +47,16 @@ def test_ssrf_security_shield():
         assert "SSRF Protection" in detail
         print(f"   Blocked Message: {detail[:70]}...")
 
+def test_schemeless_urls():
+    print("\n--- 2.1 Testing Scheme-less URLs Normalization (e.g. github.com) ---")
+    response = client.get("/api/v1/extract?url=github.com")
+    print(f" [Scheme-less Check] Target: github.com -> Status: {response.status_code}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["final_url"].startswith("https://")
+    print(f"   Successfully Normalized Final URL: {data['final_url']}")
+
+
 def test_extract_metadata_multisite():
     print(f"\n--- 3. Testing Full Metadata Extraction Across {len(TARGET_SITES)} Global Web Domains ---")
     
@@ -146,10 +156,12 @@ if __name__ == "__main__":
     try:
         test_health()
         test_ssrf_security_shield()
+        test_schemeless_urls()
         test_extract_metadata_multisite()
         test_field_filtering()
         test_all_sub_endpoints()
         print(f"\n[OK] ALL SECURITY AND MULTI-SITE TESTS PASSED SUCCESSFULLY")
+
     except Exception as e:
         import traceback
         print(f"\n[ERROR] Test suite failed: {e}")
