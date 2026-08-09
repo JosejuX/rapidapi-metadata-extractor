@@ -3,17 +3,44 @@ import re
 import time
 import urllib.parse
 from typing import Optional, List, Dict, Any
-import requests
-from bs4 import BeautifulSoup
+from contextlib import asynccontextmanager
+
+import httpx
+from selectolax.parser import HTMLParser
+from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+# ------------------------------------------------------------------------------
+# Global Cache & Shared HTTP Client (HTTP/2 Enabled)
+# ------------------------------------------------------------------------------
+# TTL Cache: 5000 URLs max, 15 minutes expiration (900 seconds)
+cache: TTLCache = TTLCache(maxsize=5000, ttl=900)
+http_client: Optional[httpx.AsyncClient] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient(
+        http2=True,
+        timeout=httpx.Timeout(6.0, connect=2.5, read=4.0),
+        limits=httpx.Limits(max_keepalive_connections=100, max_connections=500),
+        follow_redirects=True
+    )
+    yield
+    if http_client:
+        await http_client.aclose()
+
+# ------------------------------------------------------------------------------
+# FastAPI App Config
+# ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="API de alto rendimiento para extraer metadatos OpenGraph, enlaces a redes sociales, correos de contacto, teléfonos y tecnologías de cualquier sitio web.",
-    version="1.0.0"
+    description="API de ultra-alto rendimiento para extraer metadatos OpenGraph, enlaces a redes sociales, correos de contacto, teléfonos y tecnologías de cualquier sitio web.",
+    version="1.2.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -31,7 +58,36 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 ]
 
-EMAIL_REGEX = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+# Pre-compiled regular expressions for maximum performance
+EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$', re.I)
+MAILTO_HREF_REGEX = re.compile(r'^mailto:', re.I)
+TEL_HREF_REGEX = re.compile(r'^tel:', re.I)
+
+SOCIAL_DOMAINS = {
+    'twitter': re.compile(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[a-zA-Z0-9_]+', re.I),
+    'facebook': re.compile(r'https?://(?:www\.)?facebook\.com/[a-zA-Z0-9._-]+', re.I),
+    'instagram': re.compile(r'https?://(?:www\.)?instagram\.com/[a-zA-Z0-9._-]+', re.I),
+    'linkedin': re.compile(r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[a-zA-Z0-9._-]+', re.I),
+    'github': re.compile(r'https?://(?:www\.)?github\.com/[a-zA-Z0-9._-]+', re.I),
+    'youtube': re.compile(r'https?://(?:www\.)?youtube\.com/(?:c/|channel/|@)?[a-zA-Z0-9._-]+', re.I),
+    'telegram': re.compile(r'https?://(?:t\.me|telegram\.me)/[a-zA-Z0-9._-]+', re.I),
+    'tiktok': re.compile(r'https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9._-]+', re.I)
+}
+
+TECH_SIGNATURES = {
+    "WordPress": ["wp-content", "wp-includes"],
+    "Shopify": ["cdn.shopify.com", "shopify.theme"],
+    "WooCommerce": ["woocommerce"],
+    "Wix": ["wix.com", "_wix"],
+    "Squarespace": ["squarespace.com"],
+    "React": ["data-reactroot", "react-dom"],
+    "Next.js": ["_next/static", "__next"],
+    "Vue.js": ["data-v-", "vue.js"],
+    "Nuxt.js": ["_nuxt"],
+    "TailwindCSS": ["tailwind"],
+    "Bootstrap": ["bootstrap.min.css", "bootstrap.bundle"]
+}
 
 class MetadataResponse(BaseModel):
     url: str
@@ -240,19 +296,18 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
-
 @app.get("/api/v1/extract", response_model=MetadataResponse, tags=["Extractor"])
-def extract_metadata(
+async def extract_metadata(
     url: str = Query(..., description="La URL de la página web a analizar (ej: https://ejemplo.com)"),
     user_agent: Optional[str] = Query(None, description="User-Agent personalizado opcional"),
     dependencies: None = Depends(verify_rapidapi_secret)
 ):
     """
-    Extrae de forma automática:
+    Extrae de forma hiper-rápida y ultra-optimizada (Selectolax C-Parser + HTTP/2 Streaming):
     - **Metadatos SEO**: Título, descripción, canonical, og:image, favicon, idioma, autor.
     - **Contactos**: Correos electrónicos y números de teléfono detectados en el HTML.
     - **Redes Sociales**: Enlaces a Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.
@@ -260,119 +315,158 @@ def extract_metadata(
     """
     start_time = time.time()
     
-    # Asegurar esquema HTTP/HTTPS
+    # Normalizar User-Agent si viene como objeto Query
+    ua_str = str(user_agent) if (user_agent and not hasattr(user_agent, 'default')) else None
+    
+    # Normalizar esquema URL
     parsed_url = urllib.parse.urlparse(url)
     if not parsed_url.scheme:
         url = "https://" + url
         parsed_url = urllib.parse.urlparse(url)
-        
+
+    # 0. Comprobar Caché en Memoria
+    if url in cache:
+        cached_data = cache[url].copy()
+        cached_data["execution_time_ms"] = 0.05
+        return MetadataResponse(**cached_data)
+
     headers = {
-        "User-Agent": user_agent or USER_AGENTS[0],
+        "User-Agent": ua_str or USER_AGENTS[0],
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br"
     }
     
+    # Obtener o instanciar cliente HTTP/2 de alto rendimiento
+    client = http_client
+    should_close_client = False
+    if client is None:
+        client = httpx.AsyncClient(
+            http2=True,
+            timeout=httpx.Timeout(6.0, connect=2.5, read=4.0),
+            follow_redirects=True
+        )
+        should_close_client = True
+
+    MAX_BYTES = 256 * 1024  # 256 KB Límite ultra-rápido por streaming
+    content_chunks = []
+    total_bytes = 0
+    status_code = 200
+
     try:
-        response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
-        response.raise_for_status()
-    except requests.RequestException as e:
+        async with client.stream("GET", url, headers=headers) as response:
+            response.raise_for_status()
+            status_code = response.status_code
+            
+            async for chunk in response.aiter_bytes():
+                content_chunks.append(chunk)
+                total_bytes += len(chunk)
+                if total_bytes >= MAX_BYTES:
+                    break
+
+        raw_bytes = b"".join(content_chunks)
+        try:
+            encoding = response.encoding or "utf-8"
+            html_content = raw_bytes.decode(encoding, errors="replace")
+        except Exception:
+            html_content = raw_bytes.decode("utf-8", errors="replace")
+
+    except Exception as e:
+        if should_close_client:
+            await client.aclose()
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo acceder a la URL especificada: {str(e)}"
         )
-        
-    html_content = response.text
-    soup = BeautifulSoup(html_content, 'html.parser')
+    finally:
+        if should_close_client:
+            await client.aclose()
+
+    # Parseo ultrarrápido con Selectolax (Parser C-Lexbor)
+    tree = HTMLParser(html_content)
     
-    # 1. Extracción de Metadatos
-    title = soup.title.string.strip() if soup.title and soup.title.string else None
+    # 1. Metadatos SEO
+    title_node = tree.css_first('title')
+    title = title_node.text().strip() if title_node else None
     
-    def get_meta(property_or_name: str) -> Optional[str]:
-        tag = soup.find('meta', attrs={'property': property_or_name}) or soup.find('meta', attrs={'name': property_or_name})
-        return tag.get('content', '').strip() if tag and tag.get('content') else None
+    meta_tags = {}
+    for m in tree.css('meta'):
+        k = m.attributes.get('property') or m.attributes.get('name')
+        v = m.attributes.get('content')
+        if k and v:
+            meta_tags[k.lower()] = v.strip()
+            
+    def get_meta(k: str) -> Optional[str]:
+        return meta_tags.get(k.lower())
 
     description = get_meta('description') or get_meta('og:description') or get_meta('twitter:description')
     og_image = get_meta('og:image') or get_meta('twitter:image')
     keywords = get_meta('keywords')
     author = get_meta('author') or get_meta('article:author')
     site_name = get_meta('og:site_name')
-    language = soup.html.get('lang') if soup.html and soup.html.get('lang') else None
+    
+    html_node = tree.css_first('html')
+    language = html_node.attributes.get('lang') if html_node else None
     
     # Favicon
     favicon = None
-    icon_tag = soup.find('link', attrs={'rel': re.compile(r'^(shortcut )?icon$', re.I)})
-    if icon_tag and icon_tag.get('href'):
-        favicon = urllib.parse.urljoin(url, icon_tag['href'])
-    else:
+    for link in tree.css('link[rel]'):
+        rel = link.attributes.get('rel', '')
+        if FAVICON_REL_REGEX.search(rel):
+            href = link.attributes.get('href')
+            if href:
+                favicon = urllib.parse.urljoin(url, href)
+                break
+    if not favicon:
         favicon = urllib.parse.urljoin(url, "/favicon.ico")
 
-    # 2. Extracción de Redes Sociales
-    social_domains = {
-        'twitter': r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[a-zA-Z0-9_]+',
-        'facebook': r'https?://(?:www\.)?facebook\.com/[a-zA-Z0-9._-]+',
-        'instagram': r'https?://(?:www\.)?instagram\.com/[a-zA-Z0-9._-]+',
-        'linkedin': r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[a-zA-Z0-9._-]+',
-        'github': r'https?://(?:www\.)?github\.com/[a-zA-Z0-9._-]+',
-        'youtube': r'https?://(?:www\.)?youtube\.com/(?:c/|channel/|@)?[a-zA-Z0-9._-]+',
-        'telegram': r'https?://(?:t\.me|telegram\.me)/[a-zA-Z0-9._-]+',
-        'tiktok': r'https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9._-]+'
-    }
+    # 2. Redes Sociales & Contactos (Single Pass de Elementos <a>)
+    social_links: Dict[str, Optional[str]] = {platform: None for platform in SOCIAL_DOMAINS}
+    mailto_emails = []
+    tel_phones = []
     
-    social_links: Dict[str, Optional[str]] = {}
-    all_links = [a.get('href') for a in soup.find_all('a', href=True)]
-    
-    for platform, pattern in social_domains.items():
-        found = None
-        for link in all_links:
-            if re.match(pattern, link, re.I):
-                found = link
-                break
-        social_links[platform] = found
+    a_nodes = tree.css('a[href]')
+    for a in a_nodes:
+        href = a.attributes.get('href', '')
+        if not href:
+            continue
+        for platform, pattern in SOCIAL_DOMAINS.items():
+            if not social_links[platform] and pattern.search(href):
+                social_links[platform] = href
+        if MAILTO_HREF_REGEX.search(href):
+            mail = href.replace('mailto:', '').split('?')[0].strip()
+            if mail and mail not in mailto_emails:
+                mailto_emails.append(mail)
+        elif TEL_HREF_REGEX.search(href):
+            phone = href.replace('tel:', '').strip()
+            if phone and phone not in tel_phones:
+                tel_phones.append(phone)
 
-    # 3. Extracción de Contactos (Emails y Teléfonos)
-    emails = list(set(re.findall(EMAIL_REGEX, html_content)))
+    # 3. Limpieza previa del DOM y Extracción de Emails por Regex sobre Texto Limpio
+    tree.strip_tags(["script", "style", "code", "noscript", "svg"])
+    clean_text = tree.body.text(separator=' ') if tree.body else tree.text(separator=' ')
+    emails = list(set(EMAIL_REGEX.findall(clean_text)))
     emails = [e for e in emails if not e.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'))]
     
-    for a in soup.find_all('a', href=re.compile(r'^mailto:', re.I)):
-        mail = a['href'].replace('mailto:', '').split('?')[0].strip()
-        if mail and mail not in emails:
+    for mail in mailto_emails:
+        if mail not in emails:
             emails.append(mail)
-            
-    phones = []
-    for a in soup.find_all('a', href=re.compile(r'^tel:', re.I)):
-        phone = a['href'].replace('tel:', '').strip()
-        if phone and phone not in phones:
-            phones.append(phone)
 
     # 4. Detección de Tecnologías
     detected_tech = []
     html_lower = html_content.lower()
     
-    tech_signatures = {
-        "WordPress": ["wp-content", "wp-includes"],
-        "Shopify": ["cdn.shopify.com", "shopify.theme"],
-        "WooCommerce": ["woocommerce"],
-        "Wix": ["wix.com", "_wix"],
-        "Squarespace": ["squarespace.com"],
-        "React": ["data-reactroot", "react-dom"],
-        "Next.js": ["_next/static", "__next"],
-        "Vue.js": ["data-v-", "vue.js"],
-        "Nuxt.js": ["_nuxt"],
-        "TailwindCSS": ["tailwind"],
-        "Bootstrap": ["bootstrap.min.css", "bootstrap.bundle"]
-    }
-    
-    for tech, sigs in tech_signatures.items():
+    for tech, sigs in TECH_SIGNATURES.items():
         if any(sig in html_lower for sig in sigs):
             detected_tech.append(tech)
             
     execution_time = round((time.time() - start_time) * 1000, 2)
     
-    return MetadataResponse(
-        url=url,
-        status_code=response.status_code,
-        execution_time_ms=execution_time,
-        metadata={
+    response_data = {
+        "url": url,
+        "status_code": status_code,
+        "execution_time_ms": execution_time,
+        "metadata": {
             "title": title,
             "description": description,
             "og_image": og_image,
@@ -382,10 +476,15 @@ def extract_metadata(
             "language": language,
             "favicon": favicon
         },
-        social_links=social_links,
-        contacts={
+        "social_links": social_links,
+        "contacts": {
             "emails": emails[:10],
-            "phones": phones[:5]
+            "phones": tel_phones[:5]
         },
-        detected_technologies=detected_tech
-    )
+        "detected_technologies": detected_tech
+    }
+
+    # Guardar en caché
+    cache[url] = response_data
+
+    return MetadataResponse(**response_data)
