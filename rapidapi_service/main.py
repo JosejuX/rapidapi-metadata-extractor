@@ -41,11 +41,12 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with IP-Pinned Anti-SSRF & DNS Rebinding Shield, C-Lexbor parser, Rust ORJSON serialization, and AI Markdown Reader.",
-    version="1.9.0",
+    description="Ultra-fast, enterprise REST API with Explicit Scheme Shield, IP-Pinned Anti-SSRF & DNS Rebinding Shield, C-Lexbor parser, Rust ORJSON serialization, and AI Markdown Reader.",
+    version="2.0.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -236,6 +237,15 @@ def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)
             detail="Access denied: Invalid or missing X-RapidAPI-Proxy-Secret header."
         )
 
+def sanitize_user_agent(ua: Optional[str]) -> str:
+    """Sanitize User-Agent header to prevent CRLF injection and cap length at 500 chars."""
+    if not ua or hasattr(ua, 'default'):
+        return USER_AGENTS[0]
+    ua_clean = str(ua).replace('\r', '').replace('\n', '').strip()
+    if len(ua_clean) > 500:
+        ua_clean = ua_clean[:500]
+    return ua_clean or USER_AGENTS[0]
+
 # ------------------------------------------------------------------------------
 # IP-Pinned Anti-SSRF Shield (Prevents DNS Rebinding / TOCTOU Race Conditions)
 # ------------------------------------------------------------------------------
@@ -244,18 +254,20 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
     Resolves DNS hostname ONCE, validates IP address against private/loopback/cloud-metadata ranges,
     and returns a tuple of (ip_pinned_url, original_hostname) to eliminate DNS Rebinding completely.
     """
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
-
-    parsed = urllib.parse.urlparse(url)
-    scheme = parsed.scheme.lower()
+    raw_url = url.strip()
+    parsed = urllib.parse.urlparse(raw_url)
     
-    if scheme not in ("http", "https"):
-        raise HTTPException(
-            status_code=400,
-            detail="SSRF Protection: Only 'http' and 'https' protocols are permitted."
-        )
-
+    if parsed.scheme:
+        scheme = parsed.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"SSRF Protection: Forbidden scheme '{scheme}:'. Only 'http' and 'https' protocols are permitted."
+            )
+    else:
+        raw_url = "https://" + raw_url
+        parsed = urllib.parse.urlparse(raw_url)
+        scheme = parsed.scheme.lower()
 
     hostname = parsed.hostname
     if not hostname:
@@ -263,6 +275,7 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
             status_code=400,
             detail="SSRF Protection: Invalid or missing domain hostname."
         )
+
 
     hostname_lower = hostname.lower()
     if hostname_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254"):
@@ -415,7 +428,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         cached_data["execution_time_ms"] = 0.01
         return cached_data
 
-    ua_str = str(user_agent) if (user_agent and not hasattr(user_agent, 'default')) else None
+    clean_ua = sanitize_user_agent(user_agent)
     
     client = http_client
     should_close_client = False
@@ -445,12 +458,13 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             ip_pinned_url, original_hostname = validate_url_ssrf(current_url)
 
             req_headers = {
-                "User-Agent": ua_str or USER_AGENTS[0],
+                "User-Agent": clean_ua,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
                 "Accept-Encoding": "gzip, deflate, br",
                 "Host": original_hostname
             }
+
 
             async with client.stream(
                 "GET", 
@@ -942,10 +956,11 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.9.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + IP-Pinned Anti-SSRF Shield",
+        "version": "2.0.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Explicit Scheme & IP-Pinned Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
+
 
 @app.get("/api/v1/extract", tags=["Full Extractor"])
 async def extract_metadata(

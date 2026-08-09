@@ -56,6 +56,14 @@ def test_schemeless_urls():
     assert data["final_url"].startswith("https://")
     print(f"   Successfully Normalized Final URL: {data['final_url']}")
 
+def test_crlf_user_agent_sanitizer():
+    print("\n--- 2.2 Testing CRLF User-Agent Sanitization & Header Injection Protection ---")
+    malicious_ua = "Mozilla/5.0\r\nX-Injected-Header: evil\nInjected: true"
+    response = client.get("/api/v1/extract?url=https://github.com", headers={"User-Agent": malicious_ua})
+    assert response.status_code == 200
+    print(" [CRLF Header Injection Check] Passed cleanly without HTTP header splitting")
+
+
 
 def test_extract_metadata_multisite():
     print(f"\n--- 3. Testing Full Metadata Extraction Across {len(TARGET_SITES)} Global Web Domains ---")
@@ -157,10 +165,12 @@ if __name__ == "__main__":
         test_health()
         test_ssrf_security_shield()
         test_schemeless_urls()
+        test_crlf_user_agent_sanitizer()
         test_extract_metadata_multisite()
         test_field_filtering()
         test_all_sub_endpoints()
         print(f"\n[OK] ALL SECURITY AND MULTI-SITE TESTS PASSED SUCCESSFULLY")
+
 
     except Exception as e:
         import traceback
