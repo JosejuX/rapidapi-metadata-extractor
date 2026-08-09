@@ -126,10 +126,13 @@ curl --request GET \
 
 ## 📖 API Endpoint Documentation
 
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/v1/extract` | `GET` | Main extraction endpoint. Requires `url` query param. |
-| `/health` | `GET` | Health check endpoint returning API version and status. |
+| Endpoint | Method | Category | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/extract` | `GET` | **Full Extractor** | Complete extraction payload (SEO metadata, contacts, social links, technologies). |
+| `/api/v1/link-preview` | `GET` | **Link Preview** | Lightweight payload optimized for social link previews (Title, OG Image, Favicon, Description). |
+| `/api/v1/contacts` | `GET` | **Lead Generation** | Targeted lead extraction (Public Emails, Phone Numbers, Social Profiles). |
+| `/api/v1/tech-stack` | `GET` | **Tech Stack** | Framework & CMS detector (WordPress, Shopify, React, Next.js, Tailwind, etc.). |
+| `/health` | `GET` | **Health** | Health check returning API status and version. |
 
 ### Query Parameters
 
@@ -137,6 +140,7 @@ curl --request GET \
 | :--- | :--- | :--- | :--- |
 | `url` | `string` | **Yes** | The target website URL (e.g. `https://example.com`). |
 | `user_agent` | `string` | No | Custom User-Agent header (optional). |
+
 
 ---
 

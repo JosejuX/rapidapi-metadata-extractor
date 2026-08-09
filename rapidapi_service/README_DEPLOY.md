@@ -1,81 +1,80 @@
-# 🚀 Guía de Despliegue y Monetización en RapidAPI
+# 🚀 Deployment and Monetization Guide for RapidAPI
 
-Esta guía te explica paso a paso cómo desplegar tu servicio **Web Metadata & Contact Extractor API** a coste $0 y conectarlo a **RapidAPI** para empezar a generar ingresos pasivos.
+This step-by-step guide explains how to deploy your **Web Metadata & Contact Extractor API** for $0 cost and connect it to **RapidAPI** to start earning passive income.
 
 ---
 
-## PASO 1: Ejecutar la API Localmente (Prueba)
+## STEP 1: Test the API Locally
 
-Puedes probar la API en tu ordenador o móvil inmediatamente:
+You can test the API on your machine immediately:
 
 ```bash
-cd c:\Users\Juanj\Desktop\ZTE_Bot_Telegram\rapidapi_service
+cd rapidapi_service
 python -m pip install -r requirements.txt
 python test_api.py
 ```
 
-Para arrancar el servidor web interactivo:
+To launch the interactive dev server:
 ```bash
 python -m uvicorn main:app --reload --port 8000
 ```
-Abre en tu navegador: `http://localhost:8000/docs` para ver la documentación interactiva Swagger automatizada.
+Open `http://localhost:8000/docs` in your browser to view the interactive OpenAPI / Swagger UI.
 
 ---
 
-## PASO 2: Alojamiento Gratuito 24/7 (Elegir una opción)
+## STEP 2: Free 24/7 Hosting (Choose One Option)
 
-Para que RapidAPI pueda conectarse a tu API, necesitas una URL pública HTTPS que esté activa 24/7.
+To connect your API to RapidAPI, you need a 24/7 publicly accessible HTTPS URL.
 
-### Opción A: En tu móvil Android (Termux)
-Si usas Termux en tu móvil:
-1. Copia la carpeta `rapidapi_service` a Termux.
-2. Instala dependencias: `pip install -r requirements.txt`.
-3. Arranca el servidor: `uvicorn main:app --host 0.0.0.0 --port 8000`.
-4. Usa un túnel gratuito como **Cloudflare Tunnel (`cloudflared`)** o **ngrok** para obtener una URL pública HTTPS:
+### Option A: Free Cloud Hosting (Render.com / Fly.io) - RECOMMENDED
+No reliance on local hardware or home Wi-Fi:
+1. Create a free account at **[Render.com](https://render.com)**.
+2. Push this repository to GitHub.
+3. In Render, create a **Web Service**, connect your GitHub repo, and configure:
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Render will provide a free HTTPS URL like `https://web-metadata-extractor-api.onrender.com`.
+
+### Option B: Android Device / Local Tunnel (Termux + Cloudflare)
+1. Copy the `rapidapi_service` folder to Termux.
+2. Install dependencies: `pip install -r requirements.txt`.
+3. Start the server: `uvicorn main:app --host 0.0.0.0 --port 8000`.
+4. Use a free tunnel tool like **Cloudflare Tunnel (`cloudflared`)** or **ngrok** to get a public HTTPS URL:
    ```bash
    cloudflared tunnel --url http://localhost:8000
    ```
-   *(Cloudflare te dará una URL tipo `https://tu-subdominio.trycloudflare.com`)*.
-
-### Opción B: En la nube 100% gratis (Render.com / Fly.io) - RECOMENDADO
-No depende de tu batería ni de tu WiFi:
-1. Crea una cuenta gratuita en **[Render.com](https://render.com)**.
-2. Subes esta carpeta a un repositorio privado de GitHub.
-3. En Render, crea un **Web Service**, conecta el repositorio y configura:
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Render te dará una URL gratis tipo `https://mi-api-metadata.onrender.com`.
+   *(Cloudflare generates a public URL like `https://your-subdomain.trycloudflare.com`)*.
 
 ---
 
-## PASO 3: Publicar y Monetizar en RapidAPI.com
+## STEP 3: Publish and Monetize on RapidAPI.com
 
-1. **Crear cuenta de Desarrollador**:
-   - Registrate en **[RapidAPI.com](https://rapidapi.com)**.
-   - Ve a **My APIs** -> **Add New API**.
+1. **Create a Developer Account**:
+   - Register at **[RapidAPI.com](https://rapidapi.com)**.
+   - Go to **My APIs** -> **Add New API**.
 
-2. **Configurar los datos de tu API**:
-   - **API Name**: `Web Metadata, Social & Contact Extractor`
-   - **Category**: `Data / SEO`
-   - **Base URL**: Pon la URL pública de tu servidor (ej: `https://mi-api-metadata.onrender.com`).
+2. **Configure API Details**:
+   - **API Name**: `Web Metadata, OpenGraph & Contact Extractor`
+   - **Category**: `Data` / `SEO` / `Tools`
+   - **Base URL**: Enter your public server URL (e.g. `https://web-metadata-extractor-api.onrender.com`).
 
-3. **Configurar la Seguridad (Crucial para que nadie se salte el pago)**:
-   - En RapidAPI, activa el parámetro **Secret Header**. RapidAPI te dará un token tipo `sec_abc123...`.
-   - En tu servidor, define la variable de entorno `RAPIDAPI_PROXY_SECRET=sec_abc123...`.
-   - A partir de ese momento, tu API rechazará cualquier petición que no provenga de un cliente que haya pagado en RapidAPI.
+3. **Configure Security (Prevent Unpaid Usage)**:
+   - On RapidAPI, enable the **Secret Header** setting. RapidAPI will generate a token like `sec_abc123...`.
+   - Set the environment variable `RAPIDAPI_PROXY_SECRET=sec_abc123...` on your deployment host (e.g., Render Environment Variables).
+   - Your API will automatically reject any request not routed through paying RapidAPI clients.
 
-4. **Configurar los Planes de Precios (Planes de Monetización)**:
-   En la pestaña **Monetization** de RapidAPI, define tus tarifas:
-   - **BASIC (Gratis)**: 100 peticiones / mes (para atraer desarrolladores).
-   - **PRO ($9 / mes)**: 2.000 peticiones / mes.
-   - **ULTRA ($29 / mes)**: 10.000 peticiones / mes.
-   - **MEGA ($79 / mes)**: 50.000 peticiones / mes.
+4. **Set Up Pricing Plans (Monetization)**:
+   On the **Monetization** tab in RapidAPI, define your pricing tiers:
+   - **BASIC (Free)**: 100 requests / month (attracts developers).
+   - **PRO ($9 / mo)**: 10,000 requests / month.
+   - **ULTRA ($29 / mo)**: 50,000 requests / month.
+   - **MEGA ($79 / mo)**: 200,000 requests / month.
 
-5. **¡Publicar!**:
-   Haz clic en **Publish to Hub**.
+5. **Publish**:
+   Click **Publish to Hub**.
 
 ---
 
-## 💰 ¿Cómo recibes tus ingresos?
+## 💰 Receiving Payouts
 
-RapidAPI cobra a los usuarios mediante tarjeta de crédito y te transfiere las ganancias automáticamente a tu cuenta de **PayPal** o **Cuenta Bancaria (Stripe/Payouts)** al final de cada mes.
+RapidAPI charges end-user credit cards and automatically transfers your earnings to your **PayPal** or **Bank Account (Stripe Payouts)** at the end of each billing cycle.
