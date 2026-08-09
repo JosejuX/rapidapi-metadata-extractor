@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
 import httpx
-from selectolax.parser import HTMLParser, Node
+from selectolax.parser import HTMLParser
 from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
     description="Ultra-fast, enterprise REST API powered by C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, and AI/LLM Clean Markdown Reader.",
-    version="1.5.0",
+    version="1.6.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -220,7 +220,6 @@ class MetadataResponse(BaseModel):
     reading_time_minutes: float
     markdown_content: str
 
-
 class LinkPreviewResponse(BaseModel):
     url: str
     final_url: str
@@ -289,7 +288,6 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
     """
     tree = HTMLParser(html_str)
     
-    # Locate primary container
     target_node = (
         tree.css_first('article') or 
         tree.css_first('main') or 
@@ -303,7 +301,6 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
     if not target_node:
         return "", 0, 0.0
 
-    # Strip noisy elements from HTML parser tree
     target_node.strip_tags([
         "nav", "header", "footer", "aside", "script", "style", 
         "noscript", "svg", "iframe", "form", "button", "input"
@@ -311,7 +308,6 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
 
     lines = []
     
-    # Extract headings, paragraphs, lists, blockquotes, and code blocks
     for element in target_node.css('h1, h2, h3, h4, h5, h6, p, li, blockquote, pre'):
         tag = element.tag
         txt = element.text(deep=True, separator=' ').strip()
@@ -441,6 +437,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     keywords = get_meta('keywords')
     author = get_meta('author') or get_meta('article:author')
     site_name = get_meta('og:site_name')
+    theme_color = get_meta('theme-color')
     
     html_node = tree.css_first('html')
     language = html_node.attributes.get('lang') if html_node else None
@@ -449,6 +446,12 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if og_locale:
             language = og_locale.split('_')[0]
     
+    # Canonical URL extraction
+    canonical_url = None
+    canonical_node = tree.css_first('link[rel="canonical"]')
+    if canonical_node and canonical_node.attributes.get('href'):
+        canonical_url = urllib.parse.urljoin(final_url, canonical_node.attributes.get('href'))
+
     favicon = None
     for link in tree.css('link[rel]'):
         rel = link.attributes.get('rel', '')
@@ -460,12 +463,20 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     if not favicon:
         favicon = urllib.parse.urljoin(final_url, "/favicon.ico")
 
+    # Headings & Page Health Statistics
+    h1_tags = [h.text().strip() for h in tree.css('h1') if h.text().strip()]
+    img_nodes = tree.css('img')
+    images_count = len(img_nodes)
+    images_missing_alt_count = sum(1 for img in img_nodes if not img.attributes.get('alt'))
+    
+    a_nodes = tree.css('a[href]')
+    links_count = len(a_nodes)
+
     # 2. Social Profiles & Direct Contacts
     social_links: Dict[str, Optional[str]] = {platform: None for platform in SOCIAL_DOMAINS}
     mailto_emails = []
     tel_phones = []
     
-    a_nodes = tree.css('a[href]')
     for a in a_nodes:
         href = a.attributes.get('href', '')
         if not href:
@@ -556,7 +567,14 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "author": author,
             "site_name": site_name,
             "language": language,
-            "favicon": favicon
+            "favicon": favicon,
+            "canonical_url": canonical_url,
+            "theme_color": theme_color,
+            "h1_tags": h1_tags[:5],
+            "images_count": images_count,
+            "images_missing_alt_count": images_missing_alt_count,
+            "links_count": links_count,
+            "content_length_bytes": len(raw_bytes)
         },
         "social_links": social_links,
         "contacts": {
@@ -766,7 +784,7 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + AI Markdown Engine",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
@@ -780,7 +798,8 @@ async def extract_metadata(
 ):
     """
     Extract full metadata payload (<200ms with Rust ORJSON + C-Lexbor parser + HTTP/2 streaming):
-    - **SEO Metadata**: Title, description, OG image, favicon, language, author.
+    - **SEO Metadata**: Title, description, OG image, favicon, canonical URL, language, author, theme color, H1 tags.
+    - **Page Health Metrics**: Content length (bytes), image count, accessibility missing alt count, link count.
     - **Contacts**: Public email addresses and telephone numbers.
     - **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.
     - **Technologies**: 100+ CMS and framework signatures.

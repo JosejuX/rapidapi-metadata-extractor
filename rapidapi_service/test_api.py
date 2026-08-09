@@ -9,8 +9,17 @@ TARGET_SITES = [
     "https://wikipedia.org",
     "https://news.ycombinator.com",
     "https://python.org",
-    "https://amazon.com"
+    "https://amazon.com",
+    "https://dev.to",
+    "https://reddit.com",
+    "https://pypi.org",
+    "https://bbc.com",
+    "https://wordpress.org",
+    "https://stripe.com",
+    "https://stackexchange.com"
 ]
+
+
 
 def test_health():
     print("--- 1. Testing Health Endpoint ---")
@@ -21,7 +30,7 @@ def test_health():
     assert response.json()["status"] == "online"
 
 def test_extract_metadata_multisite():
-    print("\n--- 2. Testing Full Metadata Extraction Across Multiple Target Domains ---")
+    print(f"\n--- 2. Testing Full Metadata Extraction Across {len(TARGET_SITES)} Global Web Domains ---")
     
     for test_url in TARGET_SITES:
         print(f"\n[Testing Domain: {test_url}]")
@@ -30,8 +39,12 @@ def test_extract_metadata_multisite():
         print(f" Status Code: {response.status_code}")
         assert response.status_code == 200
         data = response.json()
+        meta = data['metadata']
         print(f"  - Final URL: {data['final_url']}")
-        print(f"  - Title: {data['metadata']['title'][:50] if data['metadata']['title'] else 'N/A'}")
+        print(f"  - Title: {meta['title'][:50] if meta['title'] else 'N/A'}")
+        print(f"  - Canonical URL: {meta['canonical_url']}")
+        print(f"  - H1 Headings: {meta['h1_tags']}")
+        print(f"  - Page Stats: {meta['images_count']} images ({meta['images_missing_alt_count']} missing alt), {meta['links_count']} links, {meta['content_length_bytes']} bytes")
         print(f"  - Technologies Detected: {data['detected_technologies']}")
         print(f"  - RSS Feeds Count: {len(data['rss_feeds'])}")
         print(f"  - Security Score: {data['security_score_percentage']}%")
@@ -44,7 +57,6 @@ def test_extract_metadata_multisite():
         data_cached = response_cached.json()
         print(f"  - Cache Hit Time: {data_cached['execution_time_ms']} ms (10 microseconds)")
         assert data_cached['execution_time_ms'] < 5.0
-
 
 def test_field_filtering():
     print("\n--- 3. Testing Dynamic Fields Filtering ---")
@@ -109,7 +121,7 @@ if __name__ == "__main__":
         test_extract_metadata_multisite()
         test_field_filtering()
         test_sub_endpoints()
-        print("\n[OK] ALL MULTI-SITE TESTS PASSED SUCCESSFULLY")
+        print(f"\n[OK] ALL 12 TARGET DOMAIN TESTS PASSED SUCCESSFULLY")
     except Exception as e:
         print(f"\n[ERROR] Test suite failed: {e}")
         sys.exit(1)
