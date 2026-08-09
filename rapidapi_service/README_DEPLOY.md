@@ -1,92 +1,105 @@
-# 🚀 Deployment and Monetization Guide for RapidAPI
+# 🚀 Deployment & Monetization Guide — v2.6.0
 
-This step-by-step guide explains how to deploy your **Web Metadata & Contact Extractor API** for $0 cost and connect it to **RapidAPI** to start earning passive income.
+This guide explains how to deploy the **Web Metadata & Contact Extractor API** at $0 cost and connect it to **RapidAPI** for passive income.
 
 ---
 
 ## STEP 1: Test the API Locally
 
-You can test the API on your machine immediately:
+```bash
+cd rapidapi_service
+pip install -r requirements.txt
+
+# Run full test suite (14 SSRF vectors + 12 global domains)
+python test_api.py
+
+# Interactive dev server
+uvicorn main:app --reload --port 8000
+# → Open http://localhost:8000/docs for Swagger UI
+
+# Optional: run the load test benchmark
+python load_test.py
+```
+
+---
+
+## STEP 2: Free 24/7 Hosting
+
+### Option A: Render.com (Recommended)
+
+1. Push this repo to GitHub.
+2. Create a **Web Service** on [Render.com](https://render.com).
+3. Connect your GitHub repo and configure:
+   - **Build Command**: `pip install -r rapidapi_service/requirements.txt`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Root Directory**: `rapidapi_service`
+4. Render provides a free HTTPS URL like `https://your-api.onrender.com`.
+
+### Option B: Fly.io
 
 ```bash
 cd rapidapi_service
-python -m pip install -r requirements.txt
-python test_api.py
+fly launch --name web-metadata-api
+fly deploy
 ```
 
-To launch the interactive dev server:
+### Option C: Local Tunnel (Termux + Cloudflare)
+
 ```bash
-python -m uvicorn main:app --reload --port 8000
+# In Termux
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Expose publicly
+cloudflared tunnel --url http://localhost:8000
 ```
-Open `http://localhost:8000/docs` in your browser to view the interactive OpenAPI / Swagger UI.
 
 ---
 
-## STEP 2: Free 24/7 Hosting (Choose One Option)
+## STEP 3: Critical Environment Variables
 
-To connect your API to RapidAPI, you need a 24/7 publicly accessible HTTPS URL.
+Set these in your hosting panel (**Render → Environment → Add Variable**):
 
-### Option A: Free Cloud Hosting (Render.com / Fly.io) - RECOMMENDED
-No reliance on local hardware or home Wi-Fi:
-1. Create a free account at **[Render.com](https://render.com)**.
-2. Push this repository to GitHub.
-3. In Render, create a **Web Service**, connect your GitHub repo, and configure:
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Render will provide a free HTTPS URL like `https://web-metadata-extractor-api.onrender.com`.
+| Variable | Required | Description |
+|:---|:---|:---|
+| `RAPIDAPI_PROXY_SECRET` | **YES** | Secret token from RapidAPI. Blocks all direct backend access without it. |
+| `TRUST_PROXY` | No | Set `true` if behind Render/Fly.io reverse proxy to use real client IP in rate limiter. Default: `false`. |
+| `WORKERS` | No | Number of Uvicorn workers. Default `1` (free tier). Set `4` on paid plans for higher throughput. |
 
-### Option B: Android Device / Local Tunnel (Termux + Cloudflare)
-1. Copy the `rapidapi_service` folder to Termux.
-2. Install dependencies: `pip install -r requirements.txt`.
-3. Start the server: `uvicorn main:app --host 0.0.0.0 --port 8000`.
-4. Use a free tunnel tool like **Cloudflare Tunnel (`cloudflared`)** or **ngrok** to get a public HTTPS URL:
-   ```bash
-   cloudflared tunnel --url http://localhost:8000
-   ```
-   *(Cloudflare generates a public URL like `https://your-subdomain.trycloudflare.com`)*.
+**Verify protection is active:**
+```bash
+curl https://your-api.onrender.com/health
+# Must return: "rapidapi_protected": true
+```
 
 ---
 
-## STEP 3: Publish and Monetize on RapidAPI.com
+## STEP 4: Publish & Monetize on RapidAPI
 
-1. **Create a Developer Account**:
-   - Register at **[RapidAPI.com](https://rapidapi.com)**.
-   - Go to **My APIs** -> **Add New API**.
-
-2. **Configure API Details**:
-   - **API Name**: `Web Metadata, OpenGraph & Contact Extractor`
-   - **Category**: `Data` / `SEO` / `Tools`
-   - **Base URL**: Enter your public server URL (e.g. `https://web-metadata-extractor-api.onrender.com`).
-
-3. **Configure Security (CRITICAL - Prevent Free Leaks)**:
-   - On **RapidAPI Dashboard** -> **Definition** -> **Security**, enable **Transformation** -> **Add Secret Header**.
-   - RapidAPI will generate a secret token string (e.g. `sec_prod_998877665544332211`). Set Header Name as `X-RapidAPI-Proxy-Secret`.
-   - On **Render.com** (or your hosting provider), go to **Environment** -> **Add Environment Variable**:
-     - Key: `RAPIDAPI_PROXY_SECRET`
-     - Value: `sec_prod_998877665544332211`
-   - **Verification**: Call `https://your-api.onrender.com/health`. It must now return `"rapidapi_protected": true`. Direct requests without the secret header will be rejected with `HTTP 403 Forbidden`.
-
-4. **Set Up Pricing Plans (Monetization)**:
-   On the **Monetization** tab in RapidAPI, define your 4-tier pricing structure designed for maximum conversion:
-   - **FREE ($0.00 / mo)**: 500 requests / month (~16/day) - Hard cap (honest evaluation & side-projects).
-   - **STARTER ($4.99 / mo)**: 5,000 requests / month + $0.0015 per extra req (indie hackers & personal live apps).
-   - **GROWTH ($19.99 / mo)**: 30,000 requests / month + $0.0012 per extra req (startups & production SaaS).
-   - **SCALE ($59.99 / mo)**: 120,000 requests / month + $0.0008 per extra req (business platforms & high volume).
-
-5. **Publish**:
-   Click **Publish to Hub**.
+1. Go to **RapidAPI Hub** → **My APIs** → **Add New API**.
+2. Set **Base URL** to your Render/Fly.io HTTPS URL.
+3. On **Definition → Security**, enable **Transformation → Add Secret Header**:
+   - **Header Name**: `X-RapidAPI-Proxy-Secret`
+   - Copy the generated value into your `RAPIDAPI_PROXY_SECRET` environment variable.
+4. Configure **Monetization** plans:
+   - **FREE ($0/mo)**: 100 requests/month — honest evaluation limit.
+   - **STARTER ($4.99/mo)**: 5,000 requests/month + $0.0015/extra req.
+   - **GROWTH ($19.99/mo)**: 30,000 requests/month + $0.0012/extra req.
+   - **SCALE ($59.99/mo)**: 120,000 requests/month + $0.0008/extra req.
+5. Click **Publish to Hub**.
 
 ---
 
-## ⚡ Scaling Beyond Single Process (Redis Note)
+## STEP 5: Scaling Notes
 
-By default, the API uses ultra-fast in-memory caching (`TTLCache`). For single-process deployments (1 Uvicorn worker on Render/Fly.io), this provides sub-0.01ms execution time with zero extra infrastructure costs.
-
-If you scale to multiple Uvicorn workers or multiple server instances in the future, consider adding **Redis** (`aioredis` / `redis-py`) as a shared cache layer so all workers share cached webpage payloads and rate limits seamlessly.
-
+| Scenario | Action |
+|:---|:---|
+| Free tier (0–1K req/day) | `WORKERS=1` — default, no changes needed. |
+| Paid tier (1K–10K req/day) | `WORKERS=4` — set in Render environment. |
+| Multi-instance (10K+ req/day) | Add **Redis** for shared cache across instances. |
 
 ---
 
-## 💰 Receiving Payouts
+## 💰 Payouts
 
-RapidAPI charges end-user credit cards and automatically transfers your earnings to your **PayPal** or **Bank Account (Stripe Payouts)** at the end of each billing cycle.
+RapidAPI charges end-users automatically and transfers your earnings to **PayPal** or **Stripe Payouts** at the end of each billing cycle.

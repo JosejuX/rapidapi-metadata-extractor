@@ -58,8 +58,8 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.5.0",
+    description="Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    version="2.6.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -672,10 +672,21 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
 
     description = get_meta('description') or get_meta('og:description') or get_meta('twitter:description')
     og_image = get_meta('og:image') or get_meta('twitter:image')
+    og_type = get_meta('og:type')
+    og_url = get_meta('og:url')
+    og_video = get_meta('og:video') or get_meta('og:video:url')
     keywords = get_meta('keywords')
     author = get_meta('author') or get_meta('article:author')
     site_name = get_meta('og:site_name')
     theme_color = get_meta('theme-color')
+    robots_directive = get_meta('robots')
+
+    # Extended OG locale alternates (multiple <meta property="og:locale:alternate">)
+    og_locale_alternate = [
+        m.attributes['content']
+        for m in tree.css('meta[property="og:locale:alternate"]')
+        if m.attributes.get('content')
+    ]
     
     html_node = tree.css_first('html')
     language = html_node.attributes.get('lang') if html_node else None
@@ -688,6 +699,14 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     canonical_node = tree.css_first('link[rel="canonical"]')
     if canonical_node and canonical_node.attributes.get('href'):
         canonical_url = urllib.parse.urljoin(final_url, canonical_node.attributes.get('href'))
+
+    # hreflang tags for internationalisation (max 50)
+    hreflang_tags: List[Dict[str, str]] = []
+    for link in tree.css('link[hreflang]'):
+        lang = link.attributes.get('hreflang')
+        href = link.attributes.get('href')
+        if lang and href and len(hreflang_tags) < 50:
+            hreflang_tags.append({'lang': lang, 'url': urllib.parse.urljoin(final_url, href)})
 
     favicon = None
     for link in tree.css('link[rel]'):
@@ -788,6 +807,41 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             if href:
                 rss_feeds.append(urllib.parse.urljoin(final_url, href))
 
+    # Extract Product structured data from JSON-LD schemas (first Product schema found)
+    product_data: Optional[Dict[str, Any]] = None
+    for schema in json_ld_schemas:
+        s_type = schema.get('@type', '')
+        if isinstance(s_type, list):
+            s_type = s_type[0] if s_type else ''
+        if str(s_type).strip().lower() == 'product':
+            product_data = {
+                'name': schema.get('name'),
+                'price': None,
+                'currency': None,
+                'availability': None,
+                'brand': None,
+                'rating': None,
+                'review_count': None,
+            }
+            offers = schema.get('offers') or schema.get('Offers')
+            if isinstance(offers, list):
+                offers = offers[0] if offers else None
+            if isinstance(offers, dict):
+                product_data['price'] = offers.get('price') or offers.get('lowPrice')
+                product_data['currency'] = offers.get('priceCurrency')
+                avail = offers.get('availability', '') or ''
+                product_data['availability'] = avail.split('/')[-1] if '/' in avail else avail or None
+            brand = schema.get('brand')
+            if isinstance(brand, dict):
+                product_data['brand'] = brand.get('name')
+            elif isinstance(brand, str):
+                product_data['brand'] = brand
+            agg = schema.get('aggregateRating')
+            if isinstance(agg, dict):
+                product_data['rating'] = agg.get('ratingValue')
+                product_data['review_count'] = agg.get('reviewCount')
+            break
+
     sec_headers = {
         "strict_transport_security": resp_headers.get("strict-transport-security"),
         "content_security_policy": resp_headers.get("content-security-policy"),
@@ -868,6 +922,10 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "title": title,
             "description": description,
             "og_image": og_image,
+            "og_type": og_type,
+            "og_url": og_url,
+            "og_video": og_video,
+            "og_locale_alternate": og_locale_alternate,
             "keywords": keywords,
             "author": author,
             "site_name": site_name,
@@ -875,6 +933,8 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "favicon": favicon,
             "canonical_url": canonical_url,
             "theme_color": theme_color,
+            "robots": robots_directive,
+            "hreflang_tags": hreflang_tags,
             "h1_tags": h1_tags[:5],
             "images_count": images_count,
             "images_missing_alt_count": images_missing_alt_count,
@@ -889,6 +949,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         "detected_technologies": detected_tech,
         "rss_feeds": rss_feeds,
         "json_ld_schemas": json_ld_schemas,
+        "product_data": product_data,
         "security_headers": sec_headers,
         "security_score_percentage": security_score,
         "seo_score_percentage": seo_score,
@@ -1096,7 +1157,7 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.5.0",
+        "version": "2.6.0",
         "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
         "trust_proxy": TRUST_PROXY

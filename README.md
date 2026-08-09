@@ -4,17 +4,19 @@
 
   # 🚀 Web Metadata, OpenGraph & Contact Extractor API
 
-  **Ultra-fast (<200ms) REST API to extract SEO OpenGraph metadata, contact emails, phone numbers, social media profiles, 100+ CMS tech stacks, Schema.org JSON-LD, and Security Headers from any URL.**
+  **Ultra-fast (<200ms) REST API to extract SEO metadata, contacts, social profiles, tech stack, Schema.org JSON-LD, Security Headers, and AI-ready Markdown from any URL.**
 
-  [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+  [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+  [![Version](https://img.shields.io/badge/Version-2.6.0-blueviolet.svg)]()
   [![Rust ORJSON](https://img.shields.io/badge/JSON%20Engine-Rust%20ORJSON-orange.svg)]()
   [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/)
   [![Response Time](https://img.shields.io/badge/Response%20Time-%3C200ms-brightgreen.svg)]()
   [![Cache Speed](https://img.shields.io/badge/Cache%20Speed-0.01ms-flash.svg)]()
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+  [![CI](https://github.com/JosejuX/rapidapi-metadata-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/JosejuX/rapidapi-metadata-extractor/actions)
 
-  [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-documentation) • [⚡ Code Examples](#-code-examples)
+  [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
 
 </div>
 
@@ -22,27 +24,28 @@
 
 ## 🌟 Key Features
 
-- ⚡ **Ultra-Fast Performance**: Average ~150-300ms live fetch latency depending on target server location. Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON` serialization, `uvloop` C-event loop, HTTP/2 multiplexing, 5-minute DNS TTL caching, and 64KB Early-Abort streaming limits.
-- 🛡️ **IP-Pinned Anti-SSRF Shield**: DNS Rebinding & Redirect Proof protection. Resolves DNS once, validates IP against private ranges (`10.x`, `192.168.x`), loopback (`127.0.0.1`, `localhost`), link-local, and AWS/GCP cloud metadata (`169.254.169.254`), and pins the HTTP connection directly to the validated IP with TLS SNI extensions.
-- 🎯 **SEO, Canonical & Health Metrics**: Retrieves Page Title, Description, OG Image, Favicon, `canonical_url`, Language, Author, Theme Color, H1 Headings, Image Count, Accessibility Missing Alt Count, Link Count, and `final_url` redirect tracking.
-- 📧 **Clean Contact Extractor**: Deep extraction of public email addresses and phone numbers with smart DOM cleaning (`<script>` / `<style>` removal) to eliminate false positives.
-- 📲 **Social Profile Finder**: Auto-detects profiles on **Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, and TikTok**.
-- 🛠️ **100+ Precision Technology Detector**: Structural context-aware recognition for 100+ CMS, frameworks, analytics, and e-commerce tools (**WordPress, Shopify, WooCommerce, Webflow, Framer, React, Next.js, Vue, Nuxt, Angular, Svelte, TailwindCSS, Stripe, Google Analytics 4**, etc.).
-- 📊 **Automated SEO Audit Score**: 8-point SEO diagnostic audit (0-100% score) with actionable warning lists.
-- 🔗 **Internal vs External Link Classifier**: Categorizes hyperlinks into same-domain internal links and third-party external links.
-- 🤖 **AI & LLM Clean Article Reader**: Strips noise and converts webpage article text into clean Markdown for ChatGPT, Claude, RAG, and AI agents.
-- 📦 **Schema.org JSON-LD Parser**: Parses structured data for e-commerce products (prices, reviews), articles, events, and organizations.
-- 🚀 **Normalized 15-Min In-Memory Cache**: Repeated requests serve from memory in **< 0.01 ms** internal server processing time (~6-15ms network latency).
-
-
-
-
+| Feature | Detail |
+|:---|:---|
+| ⚡ **Ultra-Fast Performance** | ~150–300ms live fetch. Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON`, `uvloop`, HTTP/2 multiplexing, async DNS (non-blocking), 5-min DNS TTL cache. |
+| 🧠 **Adaptive SPA Byte Limit** | Auto-detects React, Next.js, Vue, Angular, Nuxt, Svelte, Gatsby, Remix, Astro and expands download to 256 KB for richer data extraction. Static sites stay at 64 KB. |
+| 🛡️ **IP-Pinned Anti-SSRF Shield** | DNS resolved once, IP validated against private/loopback/cloud-metadata ranges, connection pinned to IP with TLS SNI. Eliminates DNS Rebinding & Redirect SSRF. |
+| 🎯 **Rich SEO & OpenGraph Metadata** | Title, Description, OG Image, OG Type, OG URL, OG Video, Favicon, Canonical URL, Language, Author, Theme Color, Robots directive, hreflang tags, H1 headings, image count. |
+| 📧 **Contact Extractor** | Public emails and phone numbers with smart DOM cleaning to eliminate false positives. |
+| 📲 **Social Profile Finder** | Auto-detects Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, TikTok. |
+| 🛠️ **100+ Tech Stack Detector** | WordPress, Shopify, WooCommerce, Webflow, React, Next.js, Vue, Angular, Svelte, TailwindCSS, Stripe, GA4, and 100+ more. |
+| 📦 **Schema.org JSON-LD + Product Parser** | Parses all structured data schemas AND auto-extracts Product price, currency, availability, brand, rating and review count. |
+| 📊 **SEO Audit Score** | 8-point automated SEO diagnostic (0–100%) with actionable warnings list. |
+| 🔗 **Internal vs External Link Classifier** | Categorizes up to 100 hyperlinks per page. |
+| 🤖 **AI & LLM Clean Markdown Reader** | Converts article text to clean Markdown for ChatGPT, Claude, RAG, and AI agents. Includes word count and reading time. |
+| 📡 **RSS / Atom Feed Discovery** | Auto-discovers RSS and Atom feed URLs. |
+| 🔒 **Security Headers Audit** | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer Policy, Permissions Policy — with percentage score. |
+| 🚀 **15-Min In-Memory Cache** | Cached responses served in **< 0.01 ms** server-side processing time. |
 
 ---
 
 ## ⚡ Quick Start
 
-### 1. Python Example
+### Python
 
 ```python
 import requests
@@ -54,39 +57,36 @@ headers = {
 }
 params = {"url": "https://github.com"}
 
-response = requests.get(url, headers=headers, params=params)
-data = response.json()
+data = requests.get(url, headers=headers, params=params).json()
 
-print(f"Title: {data['metadata']['title']}")
-print(f"Emails: {data['contacts']['emails']}")
-print(f"Social Links: {data['social_links']}")
-print(f"Execution Time: {data['execution_time_ms']} ms")
+print(f"Title:        {data['metadata']['title']}")
+print(f"OG Type:      {data['metadata']['og_type']}")
+print(f"Robots:       {data['metadata']['robots']}")
+print(f"hreflang:     {data['metadata']['hreflang_tags']}")
+print(f"Product:      {data['product_data']}")
+print(f"Emails:       {data['contacts']['emails']}")
+print(f"Tech Stack:   {data['detected_technologies']}")
+print(f"Time:         {data['execution_time_ms']} ms")
 ```
 
-### 2. JavaScript / Node.js (Fetch) Example
+### JavaScript / Node.js
 
 ```javascript
 const url = 'https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=https%3A%2F%2Fgithub.com';
-const options = {
-  method: 'GET',
+const response = await fetch(url, {
   headers: {
     'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY_HERE',
     'X-RapidAPI-Host': 'web-metadata-and-contact-extractor-p.rapidapi.com'
   }
-};
-
-try {
-  const response = await fetch(url, options);
-  const result = await response.json();
-  console.log('Title:', result.metadata.title);
-  console.log('Social Links:', result.social_links);
-  console.log('Response Time:', result.execution_time_ms, 'ms');
-} catch (error) {
-  console.error(error);
-}
+});
+const data = await response.json();
+console.log('Title:', data.metadata.title);
+console.log('OG Type:', data.metadata.og_type);
+console.log('Product:', data.product_data);
+console.log('Time:', data.execution_time_ms, 'ms');
 ```
 
-### 3. cURL Command
+### cURL
 
 ```bash
 curl --request GET \
@@ -102,33 +102,56 @@ curl --request GET \
 ```json
 {
   "url": "https://github.com",
+  "final_url": "https://github.com",
   "status_code": 200,
-  "execution_time_ms": 185.42,
+  "execution_time_ms": 183.72,
   "metadata": {
-    "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
-    "description": "Join the world's most widely adopted, AI-powered developer platform...",
+    "title": "GitHub · Change is constant. GitHub keeps you ahead.",
+    "description": "Join the world's most widely adopted AI-powered developer platform.",
     "og_image": "https://github.githubassets.com/assets/campaign-social-04.png",
+    "og_type": "website",
+    "og_url": "https://github.com/",
+    "og_video": null,
+    "og_locale_alternate": [],
     "keywords": null,
     "author": null,
     "site_name": "GitHub",
     "language": "en",
-    "favicon": "https://github.githubassets.com/favicons/favicon.svg"
+    "favicon": "https://github.githubassets.com/favicons/favicon.svg",
+    "canonical_url": "https://github.com/",
+    "theme_color": null,
+    "robots": "index, follow",
+    "hreflang_tags": [
+      {"lang": "en", "url": "https://github.com/"},
+      {"lang": "es", "url": "https://github.com/?locale=es"}
+    ],
+    "h1_tags": ["The AI-powered developer platform"],
+    "images_count": 12,
+    "images_missing_alt_count": 2,
+    "links_count": 64,
+    "content_length_bytes": 65024
   },
   "social_links": {
-    "twitter": null,
-    "facebook": null,
-    "instagram": null,
-    "linkedin": null,
-    "github": "https://github.com/features/copilot",
-    "youtube": null,
-    "telegram": null,
-    "tiktok": null
+    "twitter": null, "facebook": null, "instagram": null,
+    "linkedin": null, "github": "https://github.com/features/copilot",
+    "youtube": null, "telegram": null, "tiktok": null
   },
-  "contacts": {
-    "emails": [],
-    "phones": []
-  },
-  "detected_technologies": []
+  "contacts": {"emails": [], "phones": []},
+  "detected_technologies": ["Contentful"],
+  "product_data": null,
+  "rss_feeds": [],
+  "json_ld_schemas": [],
+  "security_score_percentage": 83.3,
+  "seo_score_percentage": 71.4,
+  "seo_passed_checks": ["Title tag present", "Meta description present", "Favicon icon present"],
+  "seo_warnings": ["Missing canonical tag"],
+  "internal_links": ["https://github.com/features", "https://github.com/pricing"],
+  "external_links": [],
+  "total_internal_count": 50,
+  "total_external_count": 9,
+  "word_count": 320,
+  "reading_time_minutes": 1.6,
+  "markdown_content": "# The AI-powered developer platform\n\nGitHub is where..."
 }
 ```
 
@@ -136,59 +159,56 @@ curl --request GET \
 
 ## 📖 API Endpoint Documentation
 
-| Endpoint | Method | Category | Description |
-| :--- | :--- | :--- | :--- |
-| `/api/v1/extract` | `GET` | **Full Extractor** | Complete extraction payload (SEO metadata, contacts, social links, 100+ technologies, schema, security, AI markdown, SEO audit, links). Supports `fields` filter. |
-| `/api/v1/link-preview` | `GET` | **Link Preview** | Lightweight payload optimized for social link previews (Title, OG Image, Favicon, Description). |
-| `/api/v1/contacts` | `GET` | **Lead Generation** | Targeted lead extraction (Public Emails, Phone Numbers, Social Profiles). |
-| `/api/v1/tech-stack` | `GET` | **Tech Stack** | Framework & CMS detector for 100+ technologies (WordPress, Shopify, React, Next.js, Tailwind, etc.). |
-| `/api/v1/schema` | `GET` | **Structured Data** | Schema.org JSON-LD parser (Product prices, articles, reviews, events, organization data). |
-| `/api/v1/security` | `GET` | **Security Audit** | HTTP security headers auditor (HSTS, CSP, X-Frame-Options, Referrer Policy) with percentage security score. |
-| `/api/v1/markdown` | `GET` | **AI & LLM Reader** | Clean article text to Markdown converter for ChatGPT, Claude, RAG, and AI Agents (Word count & reading time). |
-| `/api/v1/seo-audit` | `GET` | **SEO Audit** | Automated 8-point SEO diagnostic audit score (Title, Description, Canonical, H1, OG Image, Alt coverage, HTTPS) & warnings list. |
-| `/api/v1/links` | `GET` | **Link Extractor** | Hyperlink extractor and domain classifier (Internal vs External links). |
-| `/health` | `GET` | **Health** | Health check returning API status and version. |
-
-
+| Endpoint | Method | Description |
+|:---|:---|:---|
+| `/api/v1/extract` | `GET` | **Full payload** — SEO, contacts, social, tech stack, schema, security, AI markdown, SEO audit, links, product data. Supports `fields` filter. |
+| `/api/v1/link-preview` | `GET` | **Social link preview card** — title, description, OG image, favicon, site name, language. |
+| `/api/v1/contacts` | `GET` | **Lead enrichment** — public emails, phone numbers, social profiles. |
+| `/api/v1/tech-stack` | `GET` | **Framework & CMS detector** — 100+ technology signatures. |
+| `/api/v1/schema` | `GET` | **Schema.org JSON-LD parser** — product prices, articles, events, organizations. |
+| `/api/v1/security` | `GET` | **Security headers audit** — HSTS, CSP, X-Frame-Options, Referrer Policy with percentage score. |
+| `/api/v1/markdown` | `GET` | **AI & LLM Markdown reader** — clean article text, word count, reading time. |
+| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 8-point audit score with warnings list. |
+| `/api/v1/links` | `GET` | **Link classifier** — internal vs external hyperlinks (up to 100 per page). |
+| `/health` | `GET` | **Health check** — status, version, protection mode. |
 
 ### Query Parameters
 
 | Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `url` | `string` | **Yes** | The target website URL (e.g. `https://example.com`). |
-| `fields` | `string` | No | Optional comma-separated list of keys to filter in response (e.g. `metadata,contacts`). |
-| `user_agent` | `string` | No | Custom User-Agent header (optional). |
-
-
+|:---|:---|:---|:---|
+| `url` | `string` | **Yes** | Target URL (e.g. `https://example.com`). Scheme-less inputs auto-normalized. |
+| `fields` | `string` | No | Comma-separated response filter (e.g. `metadata,contacts`). |
+| `user_agent` | `string` | No | Custom User-Agent header string. |
 
 ---
 
 ## 🔧 Self-Hosting & Local Development
 
-Want to run the API locally or deploy to Render/Fly.io?
-
 ```bash
-# 1. Clone the repository
+# 1. Clone
 git clone https://github.com/JosejuX/rapidapi-metadata-extractor.git
 cd rapidapi-metadata-extractor/rapidapi_service
 
-# 2. Install dependencies
+# 2. Install
 pip install -r requirements.txt
 
-# 3. Run test suite
+# 3. Test suite (14 SSRF vectors + 12 global domains)
 python test_api.py
 
-# 4. Start local dev server
+# 4. Load test (concurrent requests benchmark)
+python load_test.py
+
+# 5. Dev server
 uvicorn main:app --reload --port 8000
 ```
 
-Open `http://localhost:8000/docs` in your browser for the interactive Swagger UI.
+Open `http://localhost:8000/docs` for the interactive Swagger UI.
 
 ---
 
-## 🏷️ Keywords & Search Topics
+## 🏷️ Keywords
 
-`metadata-extractor` • `opengraph-parser` • `email-scraper` • `contact-extractor` • `social-links-finder` • `tech-stack-detector` • `seo-parser` • `fastapi` • `rapidapi` • `python-web-scraper` • `link-preview-generator` • `lead-generation-api`
+`metadata-extractor` • `opengraph-parser` • `email-scraper` • `contact-extractor` • `social-links-finder` • `tech-stack-detector` • `seo-parser` • `fastapi` • `rapidapi` • `python-web-scraper` • `link-preview-generator` • `lead-generation-api` • `hreflang` • `schema-org` • `product-data-extractor` • `ssrf-protection`
 
 ---
 
