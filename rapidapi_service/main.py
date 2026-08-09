@@ -301,7 +301,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         )
         should_close_client = True
 
-    MAX_BYTES = 256 * 1024
+    MAX_BYTES = 128 * 1024  # 128 KB Stream limit for maximum speed
     content_chunks = []
     total_bytes = 0
     status_code = 200
@@ -320,6 +320,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                 total_bytes += len(chunk)
                 if total_bytes >= MAX_BYTES:
                     break
+
 
         raw_bytes = b"".join(content_chunks)
         try:
