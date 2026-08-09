@@ -4,13 +4,14 @@
 
   # 🚀 Web Metadata, OpenGraph & Contact Extractor API
 
-  **Ultra-fast (<200ms) REST API to extract SEO OpenGraph metadata, contact emails, phone numbers, social media profiles, and CMS tech stacks from any URL.**
+  **Ultra-fast (<200ms) REST API to extract SEO OpenGraph metadata, contact emails, phone numbers, social media profiles, 100+ CMS tech stacks, Schema.org JSON-LD, and Security Headers from any URL.**
 
   [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+  [![Rust ORJSON](https://img.shields.io/badge/JSON%20Engine-Rust%20ORJSON-orange.svg)]()
   [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/)
   [![Response Time](https://img.shields.io/badge/Response%20Time-%3C200ms-brightgreen.svg)]()
-  [![Cache Speed](https://img.shields.io/badge/Cache%20Speed-0.05ms-flash.svg)]()
+  [![Cache Speed](https://img.shields.io/badge/Cache%20Speed-0.01ms-flash.svg)]()
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
   [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-documentation) • [⚡ Code Examples](#-code-examples)
@@ -21,12 +22,15 @@
 
 ## 🌟 Key Features
 
-- ⚡ **Blazing Fast (<200ms)**: Powered by `selectolax` (C-Lexbor parser), HTTP/2 multiplexing, and 256KB streaming limits.
-- 🎯 **SEO & OpenGraph Metadata**: Instantly retrieves Page Title, Meta Description, OG Image, Keywords, Author, Site Name, Language, and Favicon.
-- 📧 **Clean Contact Extractor**: Deep extraction of public email addresses and phone numbers. Includes smart DOM cleaning (`<script>` / `<style>` removal) to eliminate false positives.
+- ⚡ **Blazing Fast (<200ms)**: Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON` serialization, `uvloop` C-event loop, HTTP/2 multiplexing, and 256KB streaming limits.
+- 🎯 **SEO & OpenGraph Metadata**: Instantly retrieves Page Title, Meta Description, OG Image, Keywords, Author, Site Name, Language, Favicon, and `final_url` redirect tracking.
+- 📧 **Clean Contact Extractor**: Deep extraction of public email addresses and phone numbers with smart DOM cleaning (`<script>` / `<style>` removal) to eliminate false positives.
 - 📲 **Social Profile Finder**: Auto-detects profiles on **Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, and TikTok**.
-- 🛠️ **Technology Stack Detector**: Recognizes CMS and framework signatures (**WordPress, Shopify, WooCommerce, Wix, Squarespace, React, Next.js, Vue, Nuxt, TailwindCSS, Bootstrap**).
-- 🚀 **Built-in 15-Min In-Memory Cache**: Repeated requests serve in **< 0.1 ms** with zero server overhead.
+- 🛠️ **100+ Technology Stack Detector**: Recognizes 100+ CMS, frameworks, analytics, and e-commerce tools (**WordPress, Shopify, WooCommerce, Webflow, Framer, React, Next.js, Vue, Nuxt, Angular, Svelte, TailwindCSS, Stripe, Google Analytics 4**, etc.).
+- 📦 **Schema.org JSON-LD Parser**: Parses structured data for e-commerce products (prices, reviews), articles, events, and organizations.
+- 🛡️ **HTTP Security Audit**: Audits security headers (HSTS, CSP, X-Frame-Options, Referrer Policy) with automated percentage security scoring.
+- 🚀 **Built-in 15-Min In-Memory Cache**: Repeated requests serve in **< 0.01 ms** (10 microseconds) with zero server overhead.
+
 
 ---
 
