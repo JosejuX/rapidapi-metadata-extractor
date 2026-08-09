@@ -413,6 +413,10 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         should_close_client = True
 
     MAX_BYTES = 128 * 1024  # 128 KB Stream limit for maximum speed
+    MAX_REDIRECTS = 5
+    redirect_count = 0
+    current_url = url
+
     content_chunks = []
     total_bytes = 0
     status_code = 200
@@ -420,17 +424,35 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     resp_headers: Dict[str, str] = {}
 
     try:
-        async with client.stream("GET", url, headers=headers) as response:
-            response.raise_for_status()
-            status_code = response.status_code
-            final_url = str(response.url)
-            resp_headers = {k.lower(): v for k, v in response.headers.items()}
-            
-            async for chunk in response.aiter_bytes():
-                content_chunks.append(chunk)
-                total_bytes += len(chunk)
-                if total_bytes >= MAX_BYTES:
-                    break
+        while redirect_count <= MAX_REDIRECTS:
+            # Enforce Anti-SSRF DNS/IP validation on EVERY redirect hop
+            current_url = validate_url_ssrf(current_url)
+
+            async with client.stream("GET", current_url, headers=headers, follow_redirects=False) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    redirect_location = response.headers.get("location") or response.headers.get("Location")
+                    if not redirect_location:
+                        break
+                    current_url = urllib.parse.urljoin(current_url, redirect_location)
+                    redirect_count += 1
+                    if redirect_count > MAX_REDIRECTS:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="SSRF Protection: Exceeded maximum allowed HTTP redirects (5 hops)."
+                        )
+                    continue
+
+                response.raise_for_status()
+                status_code = response.status_code
+                final_url = str(response.url)
+                resp_headers = {k.lower(): v for k, v in response.headers.items()}
+                
+                async for chunk in response.aiter_bytes():
+                    content_chunks.append(chunk)
+                    total_bytes += len(chunk)
+                    if total_bytes >= MAX_BYTES:
+                        break
+                break
 
         raw_bytes = b"".join(content_chunks)
         try:
@@ -438,6 +460,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             html_content = raw_bytes.decode(encoding, errors="replace")
         except Exception:
             html_content = raw_bytes.decode("utf-8", errors="replace")
+
 
     except Exception as e:
         if should_close_client:
