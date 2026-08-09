@@ -41,11 +41,12 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Explicit Scheme Shield, IP-Pinned Anti-SSRF & DNS Rebinding Shield, C-Lexbor parser, Rust ORJSON serialization, and AI Markdown Reader.",
-    version="2.0.0",
+    description="Ultra-fast, enterprise REST API with Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF & DNS Rebinding Shield, C-Lexbor parser, Rust ORJSON serialization, and AI Markdown Reader.",
+    version="2.0.1",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
+
 
 
 app.add_middleware(
@@ -246,13 +247,11 @@ def sanitize_user_agent(ua: Optional[str]) -> str:
         ua_clean = ua_clean[:500]
     return ua_clean or USER_AGENTS[0]
 
-# ------------------------------------------------------------------------------
-# IP-Pinned Anti-SSRF Shield (Prevents DNS Rebinding / TOCTOU Race Conditions)
-# ------------------------------------------------------------------------------
-def validate_url_ssrf(url: str) -> Tuple[str, str]:
+def normalize_and_validate_url(url: str) -> str:
     """
-    Resolves DNS hostname ONCE, validates IP address against private/loopback/cloud-metadata ranges,
-    and returns a tuple of (ip_pinned_url, original_hostname) to eliminate DNS Rebinding completely.
+    Single Source of Truth URL Normalizer & Scheme Validator.
+    Prepends https:// to scheme-less inputs (e.g. github.com -> https://github.com)
+    and strictly validates that scheme is http or https (rejecting ftp, file, gopher, etc.).
     """
     raw_url = url.strip()
     parsed = urllib.parse.urlparse(raw_url)
@@ -264,10 +263,21 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
                 status_code=400,
                 detail=f"SSRF Protection: Forbidden scheme '{scheme}:'. Only 'http' and 'https' protocols are permitted."
             )
+        return raw_url
     else:
-        raw_url = "https://" + raw_url
-        parsed = urllib.parse.urlparse(raw_url)
-        scheme = parsed.scheme.lower()
+        return "https://" + raw_url
+
+# ------------------------------------------------------------------------------
+# IP-Pinned Anti-SSRF Shield (Prevents DNS Rebinding / TOCTOU Race Conditions)
+# ------------------------------------------------------------------------------
+def validate_url_ssrf(url: str) -> Tuple[str, str]:
+    """
+    Resolves DNS hostname ONCE, validates IP address against private/loopback/cloud-metadata ranges,
+    and returns a tuple of (ip_pinned_url, original_hostname) to eliminate DNS Rebinding completely.
+    """
+    url = normalize_and_validate_url(url)
+    parsed = urllib.parse.urlparse(url)
+    scheme = parsed.scheme.lower()
 
     hostname = parsed.hostname
     if not hostname:
@@ -275,7 +285,6 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
             status_code=400,
             detail="SSRF Protection: Invalid or missing domain hostname."
         )
-
 
     hostname_lower = hostname.lower()
     if hostname_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254"):
@@ -337,8 +346,7 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
     return ip_pinned_url, hostname
 
 def normalize_cache_url(url: str) -> str:
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
+    url = normalize_and_validate_url(url)
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
     netloc = parsed.netloc.lower()
@@ -416,12 +424,11 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
 
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
     start_time = time.time()
-    
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
+    url = normalize_and_validate_url(url)
 
     # Normalized Cache Lookup
     cache_key = normalize_cache_url(url)
+
 
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
@@ -956,10 +963,11 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.0.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Explicit Scheme & IP-Pinned Shield",
+        "version": "2.0.1",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Single-Source-of-Truth Scheme Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
+
 
 
 @app.get("/api/v1/extract", tags=["Full Extractor"])
