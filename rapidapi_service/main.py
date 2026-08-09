@@ -17,10 +17,14 @@ from fastapi.responses import HTMLResponse, ORJSONResponse
 from pydantic import BaseModel
 
 # ------------------------------------------------------------------------------
-# Global Cache & Shared HTTP Client (HTTP/2 Enabled)
+# Global Caches & Shared HTTP Client (HTTP/2 Enabled)
 # ------------------------------------------------------------------------------
-# TTL Cache: 5000 URLs max, 15 minutes expiration (900 seconds)
+# Metadata Cache: 5000 URLs max, 15 minutes expiration (900 seconds)
 cache: TTLCache = TTLCache(maxsize=5000, ttl=900)
+
+# DNS TTL Cache: 2000 hostnames max, 5 minutes expiration (300 seconds)
+dns_cache: TTLCache = TTLCache(maxsize=2000, ttl=300)
+
 http_client: Optional[httpx.AsyncClient] = None
 
 @asynccontextmanager
@@ -29,7 +33,7 @@ async def lifespan(app: FastAPI):
     http_client = httpx.AsyncClient(
         http2=True,
         timeout=httpx.Timeout(4.5, connect=1.5, read=3.0),
-        limits=httpx.Limits(max_keepalive_connections=200, max_connections=1000, keepalive_expiry=60.0),
+        limits=httpx.Limits(max_keepalive_connections=500, max_connections=2000, keepalive_expiry=120.0),
         follow_redirects=False
     )
     yield
@@ -37,15 +41,16 @@ async def lifespan(app: FastAPI):
         await http_client.aclose()
 
 # ------------------------------------------------------------------------------
-# FastAPI App Config (ORJSON Serializer + Anti-SSRF DNS Rebinding Shield)
+# FastAPI App Config (ORJSON Serializer + Ultra-Performance DNS & Streaming)
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF & DNS Rebinding Shield, C-Lexbor parser, Rust ORJSON serialization, and AI Markdown Reader.",
-    version="2.0.1",
+    description="Ultra-fast, enterprise REST API with DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    version="2.1.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
+
 
 
 
@@ -295,14 +300,19 @@ def validate_url_ssrf(url: str) -> Tuple[str, str]:
 
     port = parsed.port or (443 if scheme == "https" else 80)
     
-    # 1. Resolve DNS ONCE
-    try:
-        addr_info = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
-    except socket.gaierror:
-        raise HTTPException(
-            status_code=400,
-            detail=f"SSRF Protection: Unable to resolve hostname '{hostname}' via DNS."
-        )
+    # 1. Resolve DNS ONCE with 5-minute TTL DNS Caching
+    dns_key = (hostname, port)
+    if dns_key in dns_cache:
+        addr_info = dns_cache[dns_key]
+    else:
+        try:
+            addr_info = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            dns_cache[dns_key] = addr_info
+        except socket.gaierror:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SSRF Protection: Unable to resolve hostname '{hostname}' via DNS."
+            )
 
     # 2. Validate all resolved IP addresses
     resolved_ip = None
@@ -429,7 +439,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     # Normalized Cache Lookup
     cache_key = normalize_cache_url(url)
 
-
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
         cached_data["execution_time_ms"] = 0.01
@@ -443,12 +452,12 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         client = httpx.AsyncClient(
             http2=True,
             timeout=httpx.Timeout(4.5, connect=1.5, read=3.0),
-            limits=httpx.Limits(max_keepalive_connections=200, max_connections=1000, keepalive_expiry=60.0),
+            limits=httpx.Limits(max_keepalive_connections=500, max_connections=2000, keepalive_expiry=120.0),
             follow_redirects=False
         )
         should_close_client = True
 
-    MAX_BYTES = 128 * 1024
+    MAX_BYTES = 64 * 1024  # 64 KB Stream cap for maximum speed
     MAX_REDIRECTS = 5
     redirect_count = 0
     current_url = url
@@ -471,7 +480,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                 "Accept-Encoding": "gzip, deflate, br",
                 "Host": original_hostname
             }
-
 
             async with client.stream(
                 "GET", 
@@ -503,7 +511,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                     total_bytes += len(chunk)
                     if total_bytes >= MAX_BYTES:
                         break
+                    joined_so_far = b"".join(content_chunks)
+                    if b"</head>" in joined_so_far.lower() and total_bytes >= 16 * 1024:
+                        break
                 break
+
 
         raw_bytes = b"".join(content_chunks)
         try:
@@ -963,10 +975,11 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.0.1",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Single-Source-of-Truth Scheme Shield",
+        "version": "2.1.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + DNS Caching & Early-Abort Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
+
 
 
 

@@ -22,9 +22,8 @@
 
 ## 🌟 Key Features
 
-- ⚡ **Blazing Fast (<200ms)**: Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON` serialization, `uvloop` C-event loop, HTTP/2 multiplexing, and 128KB streaming limits.
+- ⚡ **Ultra-Fast Performance**: Average ~150-300ms live fetch latency depending on target server location. Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON` serialization, `uvloop` C-event loop, HTTP/2 multiplexing, 5-minute DNS TTL caching, and 64KB Early-Abort streaming limits.
 - 🛡️ **IP-Pinned Anti-SSRF Shield**: DNS Rebinding & Redirect Proof protection. Resolves DNS once, validates IP against private ranges (`10.x`, `192.168.x`), loopback (`127.0.0.1`, `localhost`), link-local, and AWS/GCP cloud metadata (`169.254.169.254`), and pins the HTTP connection directly to the validated IP with TLS SNI extensions.
-
 - 🎯 **SEO, Canonical & Health Metrics**: Retrieves Page Title, Description, OG Image, Favicon, `canonical_url`, Language, Author, Theme Color, H1 Headings, Image Count, Accessibility Missing Alt Count, Link Count, and `final_url` redirect tracking.
 - 📧 **Clean Contact Extractor**: Deep extraction of public email addresses and phone numbers with smart DOM cleaning (`<script>` / `<style>` removal) to eliminate false positives.
 - 📲 **Social Profile Finder**: Auto-detects profiles on **Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, and TikTok**.
@@ -33,7 +32,8 @@
 - 🔗 **Internal vs External Link Classifier**: Categorizes hyperlinks into same-domain internal links and third-party external links.
 - 🤖 **AI & LLM Clean Article Reader**: Strips noise and converts webpage article text into clean Markdown for ChatGPT, Claude, RAG, and AI agents.
 - 📦 **Schema.org JSON-LD Parser**: Parses structured data for e-commerce products (prices, reviews), articles, events, and organizations.
-- 🚀 **Normalized 15-Min In-Memory Cache**: Normalized tracking params (`utm_*`) serving repeated requests in **< 0.01 ms** (10 microseconds) with zero server overhead.
+- 🚀 **Normalized 15-Min In-Memory Cache**: Repeated requests serve from memory in **< 0.01 ms** internal server processing time (~6-15ms network latency).
+
 
 
 
