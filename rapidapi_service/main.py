@@ -58,8 +58,8 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.4.0",
+    description="Ultra-fast, enterprise REST API with Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    version="2.5.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -131,6 +131,33 @@ FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$|^apple-touch-icon$', re.I)
 MAILTO_HREF_REGEX = re.compile(r'^mailto:', re.I)
 TEL_HREF_REGEX = re.compile(r'^tel:', re.I)
 MULTI_NEWLINE_REGEX = re.compile(r'\n{3,}')
+
+# ---------------------------------------------------------------------------
+# Adaptive Byte Limit — SPA Detection
+# Sites built with React / Next.js / Vue / Angular etc. render content via JS;
+# their HTML shell often exceeds 64 KB.  We stream up to SOFT_LIMIT (64 KB)
+# and scan for SPA signatures.  If any are found we silently expand to
+# HARD_LIMIT (256 KB) so we capture the server-side-rendered payload.
+# ---------------------------------------------------------------------------
+STREAM_SOFT_LIMIT = 64 * 1024   # 64 KB  — default for static / SSR sites
+STREAM_HARD_LIMIT = 256 * 1024  # 256 KB — expanded for SPA / Next.js sites
+
+# Lowercase byte signatures — checked against the raw byte buffer (fast)
+SPA_BYTE_SIGNATURES: List[bytes] = [
+    b'_next/static',   # Next.js
+    b'__next',         # Next.js
+    b'data-reactroot', # React
+    b'react-dom',      # React
+    b'_nuxt',          # Nuxt
+    b'__nuxt',         # Nuxt
+    b'ng-version',     # Angular
+    b'svelte-',        # Svelte / SvelteKit
+    b'__sveltekit',    # SvelteKit
+    b'___gatsby',      # Gatsby
+    b'__remix',        # Remix
+    b'data-v-',        # Vue.js (scoped component attributes)
+    b'astro-island',   # Astro
+]
 
 SOCIAL_DOMAINS = {
     'twitter': re.compile(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[a-zA-Z0-9_]+', re.I),
@@ -434,29 +461,32 @@ def normalize_cache_url(url: str) -> str:
 
     return urllib.parse.urlunparse((scheme, netloc, parsed.path or "/", parsed.params, clean_query, ""))
 
-def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, float]:
-    tree = HTMLParser(html_str)
-    
+def html_to_markdown_clean(tree: HTMLParser, base_url: str) -> tuple[str, int, float]:
+    """
+    Converts an already-parsed HTMLParser tree to clean Markdown for AI/LLM consumption.
+    Receives the existing tree from fetch_and_extract_raw to avoid a redundant 4th HTML parse.
+    NOTE: strip_tags() mutates the tree — call this function LAST after all other extractions.
+    """
     target_node = (
-        tree.css_first('article') or 
-        tree.css_first('main') or 
-        tree.css_first('[role="main"]') or 
-        tree.css_first('.post-content') or 
-        tree.css_first('.article-body') or 
-        tree.css_first('body') or 
+        tree.css_first('article') or
+        tree.css_first('main') or
+        tree.css_first('[role="main"]') or
+        tree.css_first('.post-content') or
+        tree.css_first('.article-body') or
+        tree.css_first('body') or
         tree.root
     )
-    
+
     if not target_node:
         return "", 0, 0.0
 
     target_node.strip_tags([
-        "nav", "header", "footer", "aside", "script", "style", 
+        "nav", "header", "footer", "aside", "script", "style",
         "noscript", "svg", "iframe", "form", "button", "input"
     ])
 
     lines = []
-    
+
     for element in target_node.css('h1, h2, h3, h4, h5, h6, p, li, blockquote, pre'):
         tag = element.tag
         raw_txt = element.text(deep=True, separator=' ')
@@ -487,11 +517,11 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
 
     markdown_str = "\n".join(lines).strip()
     markdown_str = MULTI_NEWLINE_REGEX.sub("\n\n", markdown_str)
-    
+
     words = markdown_str.split()
     word_count = len(words)
     reading_time = round(word_count / 200.0, 1) if word_count > 0 else 0.0
-    
+
     return markdown_str, word_count, reading_time
 
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
@@ -520,7 +550,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         )
         should_close_client = True
 
-    MAX_BYTES = 64 * 1024  # 64 KB Stream cap for maximum speed
     MAX_REDIRECTS = 5
     redirect_count = 0
     current_url = url
@@ -570,15 +599,30 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                 final_url = current_url
                 resp_headers = {k.lower(): v for k, v in response.headers.items()}
 
-                # Optimized streaming: use tail_buffer to search for </head>
-                # without reconstructing the full buffer on every chunk.
+                # Adaptive streaming: start at 64 KB (SOFT_LIMIT).
+                # At soft limit, scan for SPA byte signatures; if found expand
+                # to 256 KB (HARD_LIMIT) so SSR payload is fully captured.
+                current_limit = STREAM_SOFT_LIMIT
+                spa_check_done = False
                 tail_buffer = b""
+
                 async for chunk in response.aiter_bytes():
                     content_chunks.append(chunk)
                     total_bytes += len(chunk)
-                    if total_bytes >= MAX_BYTES:
+
+                    # At soft limit — run SPA detection once (single join, O(n))
+                    if not spa_check_done and total_bytes >= STREAM_SOFT_LIMIT:
+                        spa_check_done = True
+                        partial_lower = b"".join(content_chunks).lower()
+                        if any(sig in partial_lower for sig in SPA_BYTE_SIGNATURES):
+                            current_limit = STREAM_HARD_LIMIT
+                            logger.info("SPA detected — expanding byte limit to 256 KB for %s", current_url)
+
+                    if total_bytes >= current_limit:
                         break
-                    # Only keep last 128 bytes to check for </head> sentinel
+
+                    # Tail-buffer early exit: stop as soon as </head> is found
+                    # and we already have enough data (≥16 KB)
                     tail_buffer = (tail_buffer + chunk)[-128:]
                     if b"</head>" in tail_buffer.lower() and total_bytes >= 16 * 1024:
                         break
@@ -809,7 +853,9 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     total_seo_checks = len(passed_seo) + len(warnings_seo)
     seo_score = round((len(passed_seo) / total_seo_checks) * 100, 1) if total_seo_checks > 0 else 0.0
 
-    markdown_content, word_count, reading_time = html_to_markdown_clean(html_content, final_url)
+    # Pass the existing tree — no redundant 4th HTMLParser creation.
+    # strip_tags() inside will mutate the tree, so this must stay last.
+    markdown_content, word_count, reading_time = html_to_markdown_clean(tree, final_url)
 
     execution_time = round((time.time() - start_time) * 1000, 2)
     
@@ -1050,8 +1096,8 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.4.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Sanitized IP-Pinned Security Shield",
+        "version": "2.5.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
         "trust_proxy": TRUST_PROXY
     }

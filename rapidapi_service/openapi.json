@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Web Metadata & Contact Extractor API",
-    "description": "Ultra-fast, enterprise REST API with Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    "version": "2.4.0"
+    "description": "Ultra-fast, enterprise REST API with Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    "version": "2.5.0"
   },
   "paths": {
     "/health": {
