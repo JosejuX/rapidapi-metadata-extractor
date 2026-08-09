@@ -19,8 +19,6 @@ TARGET_SITES = [
     "https://stackexchange.com"
 ]
 
-
-
 def test_health():
     print("--- 1. Testing Health Endpoint ---")
     response = client.get("/health")
@@ -34,7 +32,6 @@ def test_extract_metadata_multisite():
     
     for test_url in TARGET_SITES:
         print(f"\n[Testing Domain: {test_url}]")
-        # Initial request (live fetch)
         response = client.get(f"/api/v1/extract?url={test_url}")
         print(f" Status Code: {response.status_code}")
         assert response.status_code == 200
@@ -42,13 +39,9 @@ def test_extract_metadata_multisite():
         meta = data['metadata']
         print(f"  - Final URL: {data['final_url']}")
         print(f"  - Title: {meta['title'][:50] if meta['title'] else 'N/A'}")
-        print(f"  - Canonical URL: {meta['canonical_url']}")
-        print(f"  - H1 Headings: {meta['h1_tags']}")
-        print(f"  - Page Stats: {meta['images_count']} images ({meta['images_missing_alt_count']} missing alt), {meta['links_count']} links, {meta['content_length_bytes']} bytes")
+        print(f"  - SEO Audit Score: {data['seo_score_percentage']}%")
+        print(f"  - Links Classified: {data['total_internal_count']} internal, {data['total_external_count']} external")
         print(f"  - Technologies Detected: {data['detected_technologies']}")
-        print(f"  - RSS Feeds Count: {len(data['rss_feeds'])}")
-        print(f"  - Security Score: {data['security_score_percentage']}%")
-        print(f"  - Word Count: {data['word_count']} words")
         print(f"  - Live Fetch Time: {data['execution_time_ms']} ms")
         
         # Second request (memory cache hit)
@@ -69,8 +62,8 @@ def test_field_filtering():
     assert "social_links" not in data
     print(" [Fields Filter OK] Selected keys only: metadata, contacts")
 
-def test_sub_endpoints():
-    print("\n--- 4. Testing All 6 Specialized Sub-Endpoints ---")
+def test_all_sub_endpoints():
+    print("\n--- 4. Testing All 8 Specialized Sub-Endpoints ---")
     test_url = "https://github.com"
 
     # Link Preview
@@ -78,50 +71,67 @@ def test_sub_endpoints():
     assert res_lp.status_code == 200
     data_lp = res_lp.json()
     assert "title" in data_lp
-    print(f" [Link Preview OK] Title: {data_lp['title'][:40]}... (Time: {data_lp['execution_time_ms']} ms)")
+    print(f" [1/8 Link Preview OK] Title: {data_lp['title'][:40]}... (Time: {data_lp['execution_time_ms']} ms)")
 
     # Contacts
     res_c = client.get(f"/api/v1/contacts?url={test_url}")
     assert res_c.status_code == 200
     data_c = res_c.json()
     assert "emails" in data_c
-    print(f" [Contacts OK] Socials found: {sum(1 for v in data_c['social_links'].values() if v)}")
+    print(f" [2/8 Contacts OK] Socials found: {sum(1 for v in data_c['social_links'].values() if v)}")
 
     # Tech Stack
     res_ts = client.get(f"/api/v1/tech-stack?url={test_url}")
     assert res_ts.status_code == 200
     data_ts = res_ts.json()
     assert "detected_technologies" in data_ts
-    print(f" [Tech Stack OK] Technologies: {data_ts['detected_technologies']}")
+    print(f" [3/8 Tech Stack OK] Technologies: {data_ts['detected_technologies']}")
 
     # Schema JSON-LD
     res_sc = client.get(f"/api/v1/schema?url={test_url}")
     assert res_sc.status_code == 200
     data_sc = res_sc.json()
     assert "json_ld_schemas" in data_sc
-    print(f" [Schema.org JSON-LD OK] Schemas count: {data_sc['json_ld_count']}")
+    print(f" [4/8 Schema.org JSON-LD OK] Schemas count: {data_sc['json_ld_count']}")
 
     # Security Headers Audit
     res_sec = client.get(f"/api/v1/security?url={test_url}")
     assert res_sec.status_code == 200
     data_sec = res_sec.json()
     assert "security_headers" in data_sec
-    print(f" [Security Audit OK] Score: {data_sec['security_score_percentage']}%")
+    print(f" [5/8 Security Audit OK] Score: {data_sec['security_score_percentage']}%")
 
     # AI & LLM Markdown Reader
     res_md = client.get(f"/api/v1/markdown?url={test_url}")
     assert res_md.status_code == 200
     data_md = res_md.json()
     assert "markdown_content" in data_md
-    print(f" [AI & LLM Markdown Reader OK] Word Count: {data_md['word_count']} words, Est. Time: {data_md['reading_time_minutes']} min")
+    print(f" [6/8 AI & LLM Markdown Reader OK] Word Count: {data_md['word_count']} words")
+
+    # SEO Audit Diagnostic
+    res_seo = client.get(f"/api/v1/seo-audit?url={test_url}")
+    assert res_seo.status_code == 200
+    data_seo = res_seo.json()
+    assert "seo_score_percentage" in data_seo
+    print(f" [7/8 SEO Audit Diagnostic OK] Score: {data_seo['seo_score_percentage']}%, Passed: {len(data_seo['passed_checks'])} checks")
+
+    # Link Extractor Classifier
+    res_links = client.get(f"/api/v1/links?url={test_url}")
+    assert res_links.status_code == 200
+    data_links = res_links.json()
+    assert "internal_links" in data_links
+    print(f" [8/8 Link Extractor Classifier OK] Total: {data_links['total_links_count']} (Internal: {data_links['internal_links_count']}, External: {data_links['external_links_count']})")
 
 if __name__ == "__main__":
     try:
         test_health()
         test_extract_metadata_multisite()
         test_field_filtering()
-        test_sub_endpoints()
-        print(f"\n[OK] ALL 12 TARGET DOMAIN TESTS PASSED SUCCESSFULLY")
+        test_all_sub_endpoints()
+        print(f"\n[OK] ALL 8 ENDPOINTS AND 12 TARGET DOMAIN TESTS PASSED SUCCESSFULLY")
     except Exception as e:
+        import traceback
         print(f"\n[ERROR] Test suite failed: {e}")
+        traceback.print_exc()
         sys.exit(1)
+

@@ -39,8 +39,8 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API powered by C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, and AI/LLM Clean Markdown Reader.",
-    version="1.6.0",
+    description="Ultra-fast, enterprise REST API powered by C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, AI Markdown Reader, and SEO Auditor.",
+    version="1.7.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -216,9 +216,17 @@ class MetadataResponse(BaseModel):
     rss_feeds: List[str]
     json_ld_schemas: List[Any]
     security_score_percentage: float
+    seo_score_percentage: float
+    seo_passed_checks: List[str]
+    seo_warnings: List[str]
+    internal_links: List[str]
+    external_links: List[str]
+    total_internal_count: int
+    total_external_count: int
     word_count: int
     reading_time_minutes: float
     markdown_content: str
+
 
 class LinkPreviewResponse(BaseModel):
     url: str
@@ -274,6 +282,26 @@ class MarkdownResponse(BaseModel):
     reading_time_minutes: float
     markdown_content: str
 
+class SeoAuditResponse(BaseModel):
+    url: str
+    final_url: str
+    status_code: int
+    execution_time_ms: float
+    seo_score_percentage: float
+    passed_checks: List[str]
+    warnings: List[str]
+
+class LinksResponse(BaseModel):
+    url: str
+    final_url: str
+    status_code: int
+    execution_time_ms: float
+    total_links_count: int
+    internal_links_count: int
+    external_links_count: int
+    internal_links: List[str]
+    external_links: List[str]
+
 def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)):
     if RAPIDAPI_PROXY_SECRET and x_rapidapi_proxy_secret != RAPIDAPI_PROXY_SECRET:
         raise HTTPException(
@@ -310,9 +338,11 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
     
     for element in target_node.css('h1, h2, h3, h4, h5, h6, p, li, blockquote, pre'):
         tag = element.tag
-        txt = element.text(deep=True, separator=' ').strip()
+        raw_txt = element.text(deep=True, separator=' ')
+        txt = raw_txt.strip() if raw_txt else ""
         if not txt:
             continue
+
 
         if tag == 'h1':
             lines.append(f"\n# {txt}\n")
@@ -420,7 +450,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     
     # 1. SEO & OpenGraph Metadata
     title_node = tree.css_first('title')
-    title = title_node.text().strip() if title_node else None
+    title = title_node.text().strip() if (title_node and title_node.text()) else None
     
     meta_tags = {}
     for m in tree.css('meta'):
@@ -454,7 +484,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
 
     favicon = None
     for link in tree.css('link[rel]'):
-        rel = link.attributes.get('rel', '')
+        rel = link.attributes.get('rel', '') or ''
         if FAVICON_REL_REGEX.search(rel):
             href = link.attributes.get('href')
             if href:
@@ -464,23 +494,44 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         favicon = urllib.parse.urljoin(final_url, "/favicon.ico")
 
     # Headings & Page Health Statistics
-    h1_tags = [h.text().strip() for h in tree.css('h1') if h.text().strip()]
+    h1_tags = [h.text().strip() for h in tree.css('h1') if (h and h.text() and h.text().strip())]
+
     img_nodes = tree.css('img')
     images_count = len(img_nodes)
     images_missing_alt_count = sum(1 for img in img_nodes if not img.attributes.get('alt'))
     
+    # 2. Link Extractor & Internal vs External Classifier
     a_nodes = tree.css('a[href]')
-    links_count = len(a_nodes)
+    final_domain = urllib.parse.urlparse(final_url).netloc.lower()
+    
+    internal_links = []
+    external_links = []
+    
+    for a in a_nodes:
+        raw_href = a.attributes.get('href')
+        href = raw_href.strip() if raw_href else ""
+        if not href or href.startswith('#') or href.startswith('javascript:'):
+            continue
+        full_link = urllib.parse.urljoin(final_url, href)
+        link_domain = urllib.parse.urlparse(full_link).netloc.lower()
+        if link_domain == final_domain or not link_domain:
+            if full_link not in internal_links and len(internal_links) < 50:
+                internal_links.append(full_link)
+        else:
+            if full_link not in external_links and len(external_links) < 50:
+                external_links.append(full_link)
 
-    # 2. Social Profiles & Direct Contacts
+    # 3. Social Profiles & Direct Contacts
     social_links: Dict[str, Optional[str]] = {platform: None for platform in SOCIAL_DOMAINS}
     mailto_emails = []
     tel_phones = []
     
     for a in a_nodes:
-        href = a.attributes.get('href', '')
+        raw_href = a.attributes.get('href')
+        href = raw_href.strip() if raw_href else ""
         if not href:
             continue
+
         for platform, pattern in SOCIAL_DOMAINS.items():
             if not social_links[platform] and pattern.search(href):
                 social_links[platform] = href
@@ -493,10 +544,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             if phone and phone not in tel_phones:
                 tel_phones.append(phone)
 
-    # 3. DOM Cleaning & Regex Email Extraction
+    # 4. DOM Cleaning & Regex Email Extraction
     clean_tree = HTMLParser(html_content)
     clean_tree.strip_tags(["script", "style", "code", "noscript", "svg"])
-    clean_text = clean_tree.body.text(separator=' ') if clean_tree.body else clean_tree.text(separator=' ')
+    body_txt = clean_tree.body.text(separator=' ') if clean_tree.body else clean_tree.text(separator=' ')
+    clean_text = body_txt if body_txt else ""
     emails = list(set(EMAIL_REGEX.findall(clean_text)))
     emails = [
         e for e in emails 
@@ -508,7 +560,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if mail not in emails:
             emails.append(mail)
 
-    # 4. Tech Stack Signatures
+    # 5. Tech Stack Signatures
     detected_tech = []
     html_lower = html_content.lower()
     
@@ -516,28 +568,32 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if any(sig in html_lower for sig in sigs):
             detected_tech.append(tech)
 
-    # 5. Schema.org JSON-LD Extraction
+    # 6. Schema.org JSON-LD Extraction
     json_ld_schemas = []
     raw_tree = HTMLParser(html_content)
     for script in raw_tree.css('script[type="application/ld+json"]'):
         try:
-            t = script.text().strip()
-            if t:
-                parsed_json = json.loads(t)
-                json_ld_schemas.append(parsed_json)
+            stxt = script.text()
+            if stxt:
+                t = stxt.strip()
+                if t:
+                    parsed_json = json.loads(t)
+                    json_ld_schemas.append(parsed_json)
         except Exception:
             pass
 
-    # 6. RSS & Atom Feeds Discovery
+    # 7. RSS & Atom Feeds Discovery
     rss_feeds = []
     for link in raw_tree.css('link[type]'):
-        t_attr = link.attributes.get('type', '').lower()
+        raw_t = link.attributes.get('type')
+        t_attr = raw_t.lower() if raw_t else ""
         if 'rss' in t_attr or 'atom' in t_attr or 'xml' in t_attr:
             href = link.attributes.get('href')
             if href:
                 rss_feeds.append(urllib.parse.urljoin(final_url, href))
 
-    # 7. Security Headers Audit
+
+    # 8. Security Headers Audit
     sec_headers = {
         "strict_transport_security": resp_headers.get("strict-transport-security"),
         "content_security_policy": resp_headers.get("content-security-policy"),
@@ -549,7 +605,70 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     present_sec = sum(1 for v in sec_headers.values() if v is not None)
     security_score = round((present_sec / len(sec_headers)) * 100, 1)
 
-    # 8. Clean Markdown Article Extractor for AI/LLMs
+    # 9. Automated 8-Point SEO Diagnostic Audit
+    passed_seo = []
+    warnings_seo = []
+
+    # Title check
+    if title:
+        if 10 <= len(title) <= 70:
+            passed_seo.append("Title tag present with optimal length (10-70 chars)")
+        else:
+            warnings_seo.append(f"Title tag present but sub-optimal length ({len(title)} chars)")
+    else:
+        warnings_seo.append("Missing <title> tag")
+
+    # Meta Description check
+    if description:
+        if 50 <= len(description) <= 160:
+            passed_seo.append("Meta description present with optimal length (50-160 chars)")
+        else:
+            warnings_seo.append(f"Meta description present but sub-optimal length ({len(description)} chars)")
+    else:
+        warnings_seo.append("Missing <meta name='description'> tag")
+
+    # Canonical check
+    if canonical_url:
+        passed_seo.append("Canonical link tag present")
+    else:
+        warnings_seo.append("Missing <link rel='canonical'> tag")
+
+    # H1 Heading check
+    if h1_tags:
+        passed_seo.append(f"Primary H1 heading present ({len(h1_tags)} found)")
+    else:
+        warnings_seo.append("Missing <h1> primary heading")
+
+    # OG Image check
+    if og_image:
+        passed_seo.append("OpenGraph image present for social sharing")
+    else:
+        warnings_seo.append("Missing og:image social preview tag")
+
+    # Favicon check
+    if favicon:
+        passed_seo.append("Favicon icon present")
+    else:
+        warnings_seo.append("Missing favicon icon")
+
+    # Image ALT coverage check
+    if images_count > 0:
+        alt_coverage = round(((images_count - images_missing_alt_count) / images_count) * 100, 1)
+        if alt_coverage >= 80.0:
+            passed_seo.append(f"High image accessibility ALT coverage ({alt_coverage}%)")
+        else:
+            warnings_seo.append(f"Low image accessibility ALT coverage ({alt_coverage}% of images have ALT text)")
+
+    # HTTPS check
+    if final_url.startswith("https://"):
+        passed_seo.append("HTTPS secure protocol active")
+    else:
+        warnings_seo.append("Non-secure HTTP protocol used")
+
+    total_seo_checks = len(passed_seo) + len(warnings_seo)
+    seo_score = round((len(passed_seo) / total_seo_checks) * 100, 1) if total_seo_checks > 0 else 0.0
+
+    # 10. Clean Markdown Article Extractor for AI/LLMs
     markdown_content, word_count, reading_time = html_to_markdown_clean(html_content, final_url)
 
     execution_time = round((time.time() - start_time) * 1000, 2)
@@ -573,7 +692,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "h1_tags": h1_tags[:5],
             "images_count": images_count,
             "images_missing_alt_count": images_missing_alt_count,
-            "links_count": links_count,
+            "links_count": len(a_nodes),
             "content_length_bytes": len(raw_bytes)
         },
         "social_links": social_links,
@@ -586,6 +705,13 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         "json_ld_schemas": json_ld_schemas,
         "security_headers": sec_headers,
         "security_score_percentage": security_score,
+        "seo_score_percentage": seo_score,
+        "seo_passed_checks": passed_seo,
+        "seo_warnings": warnings_seo,
+        "internal_links": internal_links,
+        "external_links": external_links,
+        "total_internal_count": len(internal_links),
+        "total_external_count": len(external_links),
         "word_count": word_count,
         "reading_time_minutes": reading_time,
         "markdown_content": markdown_content
@@ -784,8 +910,8 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.6.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + AI Markdown Engine",
+        "version": "1.7.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + AI Markdown + SEO Auditor",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
@@ -803,6 +929,8 @@ async def extract_metadata(
     - **Contacts**: Public email addresses and telephone numbers.
     - **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.
     - **Technologies**: 100+ CMS and framework signatures.
+    - **SEO Audit**: Automated 8-point SEO diagnostic score & warnings.
+    - **Link Extractor**: Categorized internal vs external hyperlinks.
     - **Structured Data**: Schema.org JSON-LD schemas.
     - **Feeds**: RSS/Atom feed discovery.
     - **Security**: HTTP security headers score.
@@ -945,4 +1073,48 @@ async def extract_clean_markdown_article(
         word_count=data["word_count"],
         reading_time_minutes=data["reading_time_minutes"],
         markdown_content=data["markdown_content"]
+    )
+
+@app.get("/api/v1/seo-audit", response_model=SeoAuditResponse, tags=["SEO Audit"])
+async def extract_seo_audit(
+    url: str = Query(..., description="The target URL to perform automated 8-point SEO diagnostic audit"),
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
+    dependencies: None = Depends(verify_rapidapi_secret)
+):
+    """
+    Dedicated endpoint for automated SEO diagnostic audit:
+    Evaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage, and HTTPS security.
+    """
+    data = await fetch_and_extract_raw(url, user_agent)
+    return SeoAuditResponse(
+        url=data["url"],
+        final_url=data["final_url"],
+        status_code=data["status_code"],
+        execution_time_ms=data["execution_time_ms"],
+        seo_score_percentage=data["seo_score_percentage"],
+        passed_checks=data["seo_passed_checks"],
+        warnings=data["seo_warnings"]
+    )
+
+@app.get("/api/v1/links", response_model=LinksResponse, tags=["Link Extractor"])
+async def extract_links(
+    url: str = Query(..., description="The target URL to extract and classify internal vs external hyperlinks"),
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
+    dependencies: None = Depends(verify_rapidapi_secret)
+):
+    """
+    Dedicated endpoint for hyperlink extraction and domain classification:
+    Categorizes all page links into internal links (same domain) and external links (third-party websites).
+    """
+    data = await fetch_and_extract_raw(url, user_agent)
+    return LinksResponse(
+        url=data["url"],
+        final_url=data["final_url"],
+        status_code=data["status_code"],
+        execution_time_ms=data["execution_time_ms"],
+        total_links_count=data["total_internal_count"] + data["total_external_count"],
+        internal_links_count=data["total_internal_count"],
+        external_links_count=data["total_external_count"],
+        internal_links=data["internal_links"],
+        external_links=data["external_links"]
     )
