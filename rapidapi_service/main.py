@@ -2,6 +2,8 @@ import os
 import re
 import time
 import json
+import socket
+import ipaddress
 import urllib.parse
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -35,12 +37,12 @@ async def lifespan(app: FastAPI):
         await http_client.aclose()
 
 # ------------------------------------------------------------------------------
-# FastAPI App Config (ORJSON Serializer + uvloop/httptools)
+# FastAPI App Config (ORJSON Serializer + Anti-SSRF Protection)
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API powered by C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, AI Markdown Reader, and SEO Auditor.",
-    version="1.7.0",
+    description="Ultra-fast, enterprise REST API with Anti-SSRF Protection, C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, AI Markdown Reader, and SEO Auditor.",
+    version="1.8.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -77,131 +79,64 @@ SOCIAL_DOMAINS = {
     'tiktok': re.compile(r'https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9._-]+', re.I)
 }
 
+# ------------------------------------------------------------------------------
+# Context-Aware Technology Signatures (Attribute & Structural Matching)
+# ------------------------------------------------------------------------------
 TECH_SIGNATURES = {
-    # --- CMS & Site Builders ---
-    "WordPress": ["wp-content", "wp-includes", "wordpress"],
-    "Shopify": ["cdn.shopify.com", "shopify.theme", "myshopify.com"],
-    "WooCommerce": ["woocommerce", "wc-ajax"],
-    "Wix": ["wix.com", "_wix", "wix-code"],
-    "Squarespace": ["squarespace.com", "sqsp.net"],
-    "Webflow": ["webflow.com", "uploads-ssl.webflow.com", "webflow.js"],
-    "Framer": ["framerusercontent.com", "framer.com"],
-    "Ghost": ["ghost.io", "ghost-sdk", "ghost-search"],
-    "Drupal": ["drupal.js", "sites/default/files", "drupal-settings"],
-    "Joomla": ["/components/com_", "joomla!"],
-    "Magento": ["skin/frontend", "mage/cookies.js", "magento"],
-    "PrestaShop": ["prestashop", "_ps_version"],
-    "BigCommerce": ["cdn11.bigcommerce.com", "stencil"],
-    "Contentful": ["contentful.com", "ctfassets.net"],
-    "Strapi": ["strapi"],
-    "Sanity": ["cdn.sanity.io"],
-    "Bubble": ["bubble.io", "bubble.apps"],
-    "Carrd": ["carrd.co", "carrd.net"],
-    "Weebly": ["weebly.com", "editmysite.com"],
-    "TYPO3": ["typo3"],
-    "OpenCart": ["catalog/view/theme", "opencart"],
-    "Salesforce Commerce Cloud": ["demandware.static", "demandware.store"],
-    "HubSpot CMS": ["hs-scripts.com", "hubspot.com", "hs-content"],
-    "GoDaddy Website Builder": ["godaddy.com/sites"],
+    # CMS & Site Builders
+    "WordPress": [r'wp-content', r'wp-includes', r'generator" content="wordpress'],
+    "Shopify": [r'cdn\.shopify\.com', r'shopify\.theme', r'myshopify\.com'],
+    "WooCommerce": [r'woocommerce', r'wc-ajax'],
+    "Wix": [r'wix\.com', r'_wix', r'wix-code'],
+    "Squarespace": [r'squarespace\.com', r'sqsp\.net'],
+    "Webflow": [r'uploads-ssl\.webflow\.com', r'webflow\.js', r'html class="w-mod-'],
+    "Framer": [r'framerusercontent\.com', r'framer\.com'],
+    "Ghost": [r'ghost\.io', r'ghost-sdk', r'generator" content="ghost'],
+    "Drupal": [r'drupal\.js', r'sites/default/files', r'generator" content="drupal'],
+    "Joomla": [r'/components/com_', r'generator" content="joomla'],
+    "Magento": [r'skin/frontend', r'mage/cookies\.js'],
+    "PrestaShop": [r'prestashop', r'_ps_version'],
+    "BigCommerce": [r'cdn11\.bigcommerce\.com', r'stencil'],
+    "Contentful": [r'contentful\.com', r'ctfassets\.net'],
+    "Strapi": [r'strapi'],
+    "Sanity": [r'cdn\.sanity\.io'],
 
-    # --- Frontend Frameworks & Libraries ---
-    "React": ["data-reactroot", "react-dom", "_reactListening"],
-    "Next.js": ["_next/static", "__next", "__next_f"],
-    "Vue.js": ["data-v-", "vue.js", "vue.min.js"],
-    "Nuxt.js": ["_nuxt", "__nuxt"],
-    "Angular": ["ng-version", "angular.js", "ng-app"],
-    "Svelte": ["svelte-", "svelte.js"],
-    "SvelteKit": ["_app/immutable", "__sveltekit"],
-    "Astro": ["astro-island", "data-astro-cid"],
-    "Gatsby": ["___gatsby", "gatsby-static"],
-    "Remix": ["__remix", "remix-run"],
-    "Alpine.js": ["x-data", "alpine.js", "x-init"],
-    "HTMX": ["hx-get", "hx-post", "htmx.js"],
-    "SolidJS": ["solid-js", "solid.js"],
-    "Ember.js": ["ember-application", "ember.js"],
-    "Backbone.js": ["backbone.js"],
-    "jQuery": ["jquery.min.js", "jquery.js", "code.jquery.com"],
-    "Bootstrap": ["bootstrap.min.css", "bootstrap.bundle", "bootstrap.min.js"],
-    "TailwindCSS": ["tailwind", "cdn.tailwindcss.com"],
-    "Bulma": ["bulma.min.css"],
-    "Foundation": ["foundation.min.css"],
-    "Material-UI (MUI)": ["MuiButton", "MuiTypography", "mui.com"],
-    "Chakra UI": ["chakra-ui", "chakra-button"],
-    "Ant Design": ["ant-btn", "antd.min.js"],
-    "Semantic UI": ["semantic.min.css"],
-    "DaisyUI": ["daisyui"],
-    "Shadcn UI": ["shadcn"],
-    "Lit": ["lit-element", "lit-html"],
-    "Stencil.js": ["@stencil/core"],
+    # Frontend Frameworks & Libraries
+    "React": [r'data-reactroot', r'_reactListening', r'react-dom'],
+    "Next.js": [r'_next/static', r'__next', r'__next_f'],
+    "Vue.js": [r'data-v-', r'vue\.js', r'vue\.min\.js'],
+    "Nuxt.js": [r'_nuxt', r'__nuxt'],
+    "Angular": [r'ng-version', r'angular\.js', r'ng-app'],
+    "Svelte": [r'svelte-', r'svelte\.js'],
+    "SvelteKit": [r'_app/immutable', r'__sveltekit'],
+    "Astro": [r'astro-island', r'data-astro-cid'],
+    "Gatsby": [r'___gatsby', r'gatsby-static'],
+    "Remix": [r'__remix', r'remix-run'],
+    "Alpine.js": [r'x-data', r'alpine\.js', r'x-init'],
+    "HTMX": [r'hx-get', r'hx-post', r'htmx\.js'],
+    "jQuery": [r'jquery\.min\.js', r'jquery\.js'],
+    "Bootstrap": [r'bootstrap\.min\.css', r'bootstrap\.bundle'],
+    "TailwindCSS": [r'cdn\.tailwindcss\.com', r'tailwind'],
 
-    # --- Backend Frameworks & Runtimes ---
-    "Laravel": ["laravel", "XSRF-TOKEN"],
-    "Symfony": ["symfony"],
-    "Django": ["csrfmiddlewaretoken", "__admin__"],
-    "Flask": ["flask"],
-    "FastAPI": ["fastapi", "swagger-ui"],
-    "Ruby on Rails": ["csrf-param", "rails"],
-    "ASP.NET": ["__viewstate", "asp.net"],
-    "Express.js": ["express"],
-    "NestJS": ["nestjs"],
-    "Phoenix (Elixir)": ["phx-", "_csrf_token"],
-    "Spring Boot": ["spring-boot"],
-    "CodeIgniter": ["codeigniter"],
+    # Analytics & Tools
+    "Google Analytics 4": [r'googletagmanager\.com/gtag/js', r'ga4'],
+    "Google Tag Manager": [r'googletagmanager\.com/gtm\.js'],
+    "Hotjar": [r'static\.hotjar\.com', r'hjid:'],
+    "Segment": [r'cdn\.segment\.com/analytics\.js'],
+    "Plausible Analytics": [r'plausible\.io/js/script\.js'],
+    "PostHog": [r'posthog\.com/static/array\.js'],
+    "Stripe": [r'js\.stripe\.com'],
+    "PayPal": [r'paypal\.com/sdk/js'],
+    "Vercel": [r'_vercel', r'vercel\.app'],
+    "Netlify": [r'netlify\.app'],
+    "Cloudflare": [r'cf-beacon', r'cloudflare\.com'],
+    "Fastly": [r'fastly\.net']
+}
 
-    # --- Analytics & Tracking ---
-    "Google Analytics 4": ["googletagmanager.com/gtag/js", "ga4"],
-    "Google Tag Manager": ["googletagmanager.com/gtm.js"],
-    "Hotjar": ["static.hotjar.com", "hjid:"],
-    "Mixpanel": ["cdn.mxpnl.com", "mixpanel.init"],
-    "Segment": ["cdn.segment.com/analytics.js"],
-    "Plausible Analytics": ["plausible.io/js/script.js"],
-    "PostHog": ["posthog.com/static/array.js"],
-    "Amplitude": ["cdn.amplitude.com"],
-    "Matomo": ["matomo.js", "piwik.js"],
-    "Microsoft Clarity": ["clarity.ms/tag"],
-    "Heap Analytics": ["heapanalytics.com"],
-    "Simple Analytics": ["scripts.simpleanalyticscdn.com"],
-
-    # --- Customer Support & Chat ---
-    "Intercom": ["widget.intercom.io", "intercomSettings"],
-    "Crisp": ["client.crisp.chat"],
-    "Drift": ["js.driftt.com"],
-    "Zendesk": ["static.zdassets.com", "zendesk.com"],
-    "HubSpot Chat": ["js.hs-scripts.com", "hubspot.js"],
-    "Mailchimp": ["chimpstatic.com", "mailchimp.com"],
-    "Klaviyo": ["static.klaviyo.com"],
-    "Brevo (Sendinblue)": ["sibautomation.com", "sendinblue.com"],
-    "Tidio": ["code.tidio.co"],
-    "LiveChat": ["cdn.livechatinc.com"],
-    "Olark": ["static.olark.com"],
-
-    # --- Payments & E-Commerce Tools ---
-    "Stripe": ["js.stripe.com", "stripe.com"],
-    "PayPal": ["paypal.com/sdk/js", "paypalobjects.com"],
-    "Klarna": ["klarna.com"],
-    "Square": ["squareup.com"],
-    "Paddle": ["cdn.paddle.com"],
-    "Lemon Squeezy": ["lemonsqueezy.com"],
-    "Recharge": ["rechargeapps.com"],
-
-    # --- Hosting, CDN & Cloud Infrastructure ---
-    "Vercel": ["_vercel", "vercel.app"],
-    "Netlify": ["netlify.app", "netlify"],
-    "Cloudflare": ["cloudflare.com", "cf-beacon"],
-    "AWS CloudFront": ["cloudfront.net"],
-    "Fastly": ["fastly.net"],
-    "Cloudinary": ["res.cloudinary.com"],
-    "Imgix": ["imgix.net"],
-    "Supabase": ["supabase.co"],
-    "Firebase": ["firebaseapp.com", "firestore"],
-
-    # --- SEO, Ads & Optimization ---
-    "Yoast SEO": ["yoast-seo", "yoast"],
-    "Rank Math": ["rank-math"],
-    "Optimizely": ["optimizely.com"],
-    "VWO": ["dev.visualwebsiteoptimizer.com"],
-    "Google AdSense": ["pagead2.googlesyndication.com"],
-    "Meta Pixel": ["connect.facebook.net/en_US/fbevents.js"]
+# Compile regular expressions for tech signatures
+COMPILED_TECH_SIGS = {
+    tech: [re.compile(pattern, re.I) for pattern in patterns]
+    for tech, patterns in TECH_SIGNATURES.items()
 }
 
 class MetadataResponse(BaseModel):
@@ -226,7 +161,6 @@ class MetadataResponse(BaseModel):
     word_count: int
     reading_time_minutes: float
     markdown_content: str
-
 
 class LinkPreviewResponse(BaseModel):
     url: str
@@ -309,11 +243,83 @@ def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)
             detail="Access denied: Invalid or missing X-RapidAPI-Proxy-Secret header."
         )
 
+# ------------------------------------------------------------------------------
+# Anti-SSRF Security Shield (Validates DNS resolution against private/internal IPs)
+# ------------------------------------------------------------------------------
+def validate_url_ssrf(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    if not parsed.scheme:
+        url = "https://" + url
+        parsed = urllib.parse.urlparse(url)
+
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise HTTPException(
+            status_code=400,
+            detail="SSRF Protection: Only 'http' and 'https' protocols are permitted."
+        )
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(
+            status_code=400,
+            detail="SSRF Protection: Invalid or missing domain hostname."
+        )
+
+    hostname_lower = hostname.lower()
+    if hostname_lower in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254"):
+        raise HTTPException(
+            status_code=400,
+            detail="SSRF Protection: Access to loopback, internal, or cloud metadata hostnames is forbidden."
+        )
+
+    try:
+        addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=400,
+            detail=f"SSRF Protection: Unable to resolve hostname '{hostname}' via DNS."
+        )
+
+    for item in addr_info:
+        ip_str = item[4][0]
+        try:
+            ip_obj = ipaddress.ip_address(ip_str)
+            if (
+                ip_obj.is_private or
+                ip_obj.is_loopback or
+                ip_obj.is_link_local or
+                ip_obj.is_multicast or
+                ip_obj.is_reserved or
+                ip_obj.is_unspecified or
+                str(ip_obj) == "169.254.169.254"
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"SSRF Protection: Target domain resolves to private/internal IP address ({ip_str}), which is forbidden."
+                )
+        except ValueError:
+            pass
+
+    return url
+
+def normalize_cache_url(url: str) -> str:
+    """Normalize URL by stripping marketing tracking parameters and standardizing scheme/port."""
+    parsed = urllib.parse.urlparse(url)
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+    
+    if scheme == "http" and netloc.endswith(":80"):
+        netloc = netloc[:-3]
+    elif scheme == "https" and netloc.endswith(":443"):
+        netloc = netloc[:-4]
+
+    query_params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    clean_params = [(k, v) for k, v in query_params if not k.lower().startswith(('utm_', 'fbclid', 'gclid', 'msclkid'))]
+    clean_query = urllib.parse.urlencode(clean_params)
+
+    return urllib.parse.urlunparse((scheme, netloc, parsed.path or "/", parsed.params, clean_query, ""))
+
 def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, float]:
-    """
-    Sub-millisecond HTML-to-Markdown converter for LLMs/AI.
-    Locates primary content, strips noise, and formats headings, paragraphs, lists, links, and code blocks.
-    """
     tree = HTMLParser(html_str)
     
     target_node = (
@@ -342,7 +348,6 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
         txt = raw_txt.strip() if raw_txt else ""
         if not txt:
             continue
-
 
         if tag == 'h1':
             lines.append(f"\n# {txt}\n")
@@ -377,19 +382,18 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
     start_time = time.time()
     
-    ua_str = str(user_agent) if (user_agent and not hasattr(user_agent, 'default')) else None
+    # 1. SSRF Security Shield Validation
+    url = validate_url_ssrf(url)
     
-    parsed_url = urllib.parse.urlparse(url)
-    if not parsed_url.scheme:
-        url = "https://" + url
-        parsed_url = urllib.parse.urlparse(url)
-
-    # Fast-Path In-Memory Cache Hit (Sub-0.01ms)
-    if url in cache:
-        cached_data = cache[url].copy()
+    # 2. Normalized Cache Lookup
+    cache_key = normalize_cache_url(url)
+    if cache_key in cache:
+        cached_data = cache[cache_key].copy()
         cached_data["execution_time_ms"] = 0.01
         return cached_data
 
+    ua_str = str(user_agent) if (user_agent and not hasattr(user_agent, 'default')) else None
+    
     headers = {
         "User-Agent": ua_str or USER_AGENTS[0],
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -476,7 +480,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if og_locale:
             language = og_locale.split('_')[0]
     
-    # Canonical URL extraction
     canonical_url = None
     canonical_node = tree.css_first('link[rel="canonical"]')
     if canonical_node and canonical_node.attributes.get('href'):
@@ -493,14 +496,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     if not favicon:
         favicon = urllib.parse.urljoin(final_url, "/favicon.ico")
 
-    # Headings & Page Health Statistics
     h1_tags = [h.text().strip() for h in tree.css('h1') if (h and h.text() and h.text().strip())]
-
     img_nodes = tree.css('img')
     images_count = len(img_nodes)
     images_missing_alt_count = sum(1 for img in img_nodes if not img.attributes.get('alt'))
     
-    # 2. Link Extractor & Internal vs External Classifier
     a_nodes = tree.css('a[href]')
     final_domain = urllib.parse.urlparse(final_url).netloc.lower()
     
@@ -521,7 +521,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             if full_link not in external_links and len(external_links) < 50:
                 external_links.append(full_link)
 
-    # 3. Social Profiles & Direct Contacts
     social_links: Dict[str, Optional[str]] = {platform: None for platform in SOCIAL_DOMAINS}
     mailto_emails = []
     tel_phones = []
@@ -531,7 +530,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         href = raw_href.strip() if raw_href else ""
         if not href:
             continue
-
         for platform, pattern in SOCIAL_DOMAINS.items():
             if not social_links[platform] and pattern.search(href):
                 social_links[platform] = href
@@ -544,7 +542,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             if phone and phone not in tel_phones:
                 tel_phones.append(phone)
 
-    # 4. DOM Cleaning & Regex Email Extraction
     clean_tree = HTMLParser(html_content)
     clean_tree.strip_tags(["script", "style", "code", "noscript", "svg"])
     body_txt = clean_tree.body.text(separator=' ') if clean_tree.body else clean_tree.text(separator=' ')
@@ -560,15 +557,12 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if mail not in emails:
             emails.append(mail)
 
-    # 5. Tech Stack Signatures
+    # Precision Context-Aware Tech Stack Detection
     detected_tech = []
-    html_lower = html_content.lower()
-    
-    for tech, sigs in TECH_SIGNATURES.items():
-        if any(sig in html_lower for sig in sigs):
+    for tech, patterns in COMPILED_TECH_SIGS.items():
+        if any(pattern.search(html_content) for pattern in patterns):
             detected_tech.append(tech)
 
-    # 6. Schema.org JSON-LD Extraction
     json_ld_schemas = []
     raw_tree = HTMLParser(html_content)
     for script in raw_tree.css('script[type="application/ld+json"]'):
@@ -582,7 +576,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         except Exception:
             pass
 
-    # 7. RSS & Atom Feeds Discovery
     rss_feeds = []
     for link in raw_tree.css('link[type]'):
         raw_t = link.attributes.get('type')
@@ -592,8 +585,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             if href:
                 rss_feeds.append(urllib.parse.urljoin(final_url, href))
 
-
-    # 8. Security Headers Audit
     sec_headers = {
         "strict_transport_security": resp_headers.get("strict-transport-security"),
         "content_security_policy": resp_headers.get("content-security-policy"),
@@ -605,11 +596,9 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     present_sec = sum(1 for v in sec_headers.values() if v is not None)
     security_score = round((present_sec / len(sec_headers)) * 100, 1)
 
-    # 9. Automated 8-Point SEO Diagnostic Audit
     passed_seo = []
     warnings_seo = []
 
-    # Title check
     if title:
         if 10 <= len(title) <= 70:
             passed_seo.append("Title tag present with optimal length (10-70 chars)")
@@ -618,7 +607,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     else:
         warnings_seo.append("Missing <title> tag")
 
-    # Meta Description check
     if description:
         if 50 <= len(description) <= 160:
             passed_seo.append("Meta description present with optimal length (50-160 chars)")
@@ -627,31 +615,26 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     else:
         warnings_seo.append("Missing <meta name='description'> tag")
 
-    # Canonical check
     if canonical_url:
         passed_seo.append("Canonical link tag present")
     else:
         warnings_seo.append("Missing <link rel='canonical'> tag")
 
-    # H1 Heading check
     if h1_tags:
         passed_seo.append(f"Primary H1 heading present ({len(h1_tags)} found)")
     else:
         warnings_seo.append("Missing <h1> primary heading")
 
-    # OG Image check
     if og_image:
         passed_seo.append("OpenGraph image present for social sharing")
     else:
         warnings_seo.append("Missing og:image social preview tag")
 
-    # Favicon check
     if favicon:
         passed_seo.append("Favicon icon present")
     else:
         warnings_seo.append("Missing favicon icon")
 
-    # Image ALT coverage check
     if images_count > 0:
         alt_coverage = round(((images_count - images_missing_alt_count) / images_count) * 100, 1)
         if alt_coverage >= 80.0:
@@ -659,7 +642,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         else:
             warnings_seo.append(f"Low image accessibility ALT coverage ({alt_coverage}% of images have ALT text)")
 
-    # HTTPS check
     if final_url.startswith("https://"):
         passed_seo.append("HTTPS secure protocol active")
     else:
@@ -668,7 +650,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     total_seo_checks = len(passed_seo) + len(warnings_seo)
     seo_score = round((len(passed_seo) / total_seo_checks) * 100, 1) if total_seo_checks > 0 else 0.0
 
-    # 10. Clean Markdown Article Extractor for AI/LLMs
     markdown_content, word_count, reading_time = html_to_markdown_clean(html_content, final_url)
 
     execution_time = round((time.time() - start_time) * 1000, 2)
@@ -717,7 +698,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         "markdown_content": markdown_content
     }
 
-    cache[url] = response_data
+    cache[cache_key] = response_data
     return response_data
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -910,8 +891,8 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.7.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + AI Markdown + SEO Auditor",
+        "version": "1.8.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Anti-SSRF Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
@@ -923,17 +904,17 @@ async def extract_metadata(
     dependencies: None = Depends(verify_rapidapi_secret)
 ):
     """
-    Extract full metadata payload (<200ms with Rust ORJSON + C-Lexbor parser + HTTP/2 streaming):
+    Extract full metadata payload (<200ms with Rust ORJSON + Anti-SSRF Shield + HTTP/2 streaming):
     - **SEO Metadata**: Title, description, OG image, favicon, canonical URL, language, author, theme color, H1 tags.
     - **Page Health Metrics**: Content length (bytes), image count, accessibility missing alt count, link count.
     - **Contacts**: Public email addresses and telephone numbers.
     - **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.
-    - **Technologies**: 100+ CMS and framework signatures.
+    - **Technologies**: Precision context-aware CMS and framework signatures.
     - **SEO Audit**: Automated 8-point SEO diagnostic score & warnings.
     - **Link Extractor**: Categorized internal vs external hyperlinks.
     - **Structured Data**: Schema.org JSON-LD schemas.
     - **Feeds**: RSS/Atom feed discovery.
-    - **Security**: HTTP security headers score.
+    - **Security**: HTTP security headers score & Anti-SSRF domain validation.
     - **AI Reader**: Clean Markdown article text, word count & reading time.
     """
     data = await fetch_and_extract_raw(url, user_agent)
@@ -1000,7 +981,7 @@ async def extract_tech_stack(
 ):
     """
     Dedicated endpoint for technology intelligence & CMS auditing:
-    Detects 100+ frameworks and CMS signatures (WordPress, Shopify, WooCommerce, Wix, React, Next.js, Vue, Nuxt, TailwindCSS, Bootstrap, etc.).
+    Detects 100+ frameworks and CMS signatures with structural context-aware matching.
     """
     data = await fetch_and_extract_raw(url, user_agent)
     return TechStackResponse(

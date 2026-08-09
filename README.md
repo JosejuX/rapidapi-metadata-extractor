@@ -23,14 +23,17 @@
 ## 🌟 Key Features
 
 - ⚡ **Blazing Fast (<200ms)**: Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON` serialization, `uvloop` C-event loop, HTTP/2 multiplexing, and 128KB streaming limits.
+- 🛡️ **Anti-SSRF Security Shield**: Built-in DNS resolution validator blocking access to private IPs, loopback (`127.0.0.1`, `localhost`), link-local, and AWS/GCP cloud metadata (`169.254.169.254`).
 - 🎯 **SEO, Canonical & Health Metrics**: Retrieves Page Title, Description, OG Image, Favicon, `canonical_url`, Language, Author, Theme Color, H1 Headings, Image Count, Accessibility Missing Alt Count, Link Count, and `final_url` redirect tracking.
 - 📧 **Clean Contact Extractor**: Deep extraction of public email addresses and phone numbers with smart DOM cleaning (`<script>` / `<style>` removal) to eliminate false positives.
 - 📲 **Social Profile Finder**: Auto-detects profiles on **Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, and TikTok**.
-- 🛠️ **100+ Technology Stack Detector**: Recognizes 100+ CMS, frameworks, analytics, and e-commerce tools (**WordPress, Shopify, WooCommerce, Webflow, Framer, React, Next.js, Vue, Nuxt, Angular, Svelte, TailwindCSS, Stripe, Google Analytics 4**, etc.).
+- 🛠️ **100+ Precision Technology Detector**: Structural context-aware recognition for 100+ CMS, frameworks, analytics, and e-commerce tools (**WordPress, Shopify, WooCommerce, Webflow, Framer, React, Next.js, Vue, Nuxt, Angular, Svelte, TailwindCSS, Stripe, Google Analytics 4**, etc.).
+- 📊 **Automated SEO Audit Score**: 8-point SEO diagnostic audit (0-100% score) with actionable warning lists.
+- 🔗 **Internal vs External Link Classifier**: Categorizes hyperlinks into same-domain internal links and third-party external links.
 - 🤖 **AI & LLM Clean Article Reader**: Strips noise and converts webpage article text into clean Markdown for ChatGPT, Claude, RAG, and AI agents.
 - 📦 **Schema.org JSON-LD Parser**: Parses structured data for e-commerce products (prices, reviews), articles, events, and organizations.
-- 🛡️ **HTTP Security Audit**: Audits security headers (HSTS, CSP, X-Frame-Options, Referrer Policy) with automated percentage security scoring.
-- 🚀 **Built-in 15-Min In-Memory Cache**: Repeated requests serve in **< 0.01 ms** (10 microseconds) with zero server overhead.
+- 🚀 **Normalized 15-Min In-Memory Cache**: Normalized tracking params (`utm_*`) serving repeated requests in **< 0.01 ms** (10 microseconds) with zero server overhead.
+
 
 
 
