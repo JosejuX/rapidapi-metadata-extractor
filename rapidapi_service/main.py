@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import json
 import urllib.parse
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -38,8 +39,8 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, high-performance REST API to extract OpenGraph SEO metadata, social media profiles, contact emails, phone numbers, and CMS technology stacks from any website.",
-    version="1.2.0",
+    description="Ultra-fast, enterprise REST API to extract OpenGraph SEO metadata, social profiles, contact emails, phone numbers, CMS technology stacks, Schema.org JSON-LD data, and HTTP security headers from any URL.",
+    version="1.3.0",
     lifespan=lifespan
 )
 
@@ -59,7 +60,7 @@ USER_AGENTS = [
 ]
 
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$', re.I)
+FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$|^apple-touch-icon$', re.I)
 MAILTO_HREF_REGEX = re.compile(r'^mailto:', re.I)
 TEL_HREF_REGEX = re.compile(r'^tel:', re.I)
 
@@ -201,18 +202,22 @@ TECH_SIGNATURES = {
     "Meta Pixel": ["connect.facebook.net/en_US/fbevents.js"]
 }
 
-
 class MetadataResponse(BaseModel):
     url: str
+    final_url: str
     status_code: int
     execution_time_ms: float
     metadata: Dict[str, Any]
     social_links: Dict[str, Optional[str]]
     contacts: Dict[str, List[str]]
     detected_technologies: List[str]
+    rss_feeds: List[str]
+    json_ld_schemas: List[Any]
+    security_score_percentage: float
 
 class LinkPreviewResponse(BaseModel):
     url: str
+    final_url: str
     status_code: int
     execution_time_ms: float
     title: Optional[str]
@@ -224,6 +229,7 @@ class LinkPreviewResponse(BaseModel):
 
 class ContactsResponse(BaseModel):
     url: str
+    final_url: str
     status_code: int
     execution_time_ms: float
     emails: List[str]
@@ -232,9 +238,26 @@ class ContactsResponse(BaseModel):
 
 class TechStackResponse(BaseModel):
     url: str
+    final_url: str
     status_code: int
     execution_time_ms: float
     detected_technologies: List[str]
+
+class SchemaResponse(BaseModel):
+    url: str
+    final_url: str
+    status_code: int
+    execution_time_ms: float
+    json_ld_count: int
+    json_ld_schemas: List[Any]
+
+class SecurityHeadersResponse(BaseModel):
+    url: str
+    final_url: str
+    status_code: int
+    execution_time_ms: float
+    security_score_percentage: float
+    security_headers: Dict[str, Optional[str]]
 
 def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)):
     if RAPIDAPI_PROXY_SECRET and x_rapidapi_proxy_secret != RAPIDAPI_PROXY_SECRET:
@@ -280,11 +303,15 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     content_chunks = []
     total_bytes = 0
     status_code = 200
+    final_url = url
+    resp_headers: Dict[str, str] = {}
 
     try:
         async with client.stream("GET", url, headers=headers) as response:
             response.raise_for_status()
             status_code = response.status_code
+            final_url = str(response.url)
+            resp_headers = {k.lower(): v for k, v in response.headers.items()}
             
             async for chunk in response.aiter_bytes():
                 content_chunks.append(chunk)
@@ -334,6 +361,10 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     
     html_node = tree.css_first('html')
     language = html_node.attributes.get('lang') if html_node else None
+    if not language:
+        og_locale = get_meta('og:locale')
+        if og_locale:
+            language = og_locale.split('_')[0]
     
     favicon = None
     for link in tree.css('link[rel]'):
@@ -341,10 +372,10 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if FAVICON_REL_REGEX.search(rel):
             href = link.attributes.get('href')
             if href:
-                favicon = urllib.parse.urljoin(url, href)
+                favicon = urllib.parse.urljoin(final_url, href)
                 break
     if not favicon:
-        favicon = urllib.parse.urljoin(url, "/favicon.ico")
+        favicon = urllib.parse.urljoin(final_url, "/favicon.ico")
 
     # 2. Social Profiles & Direct Contacts
     social_links: Dict[str, Optional[str]] = {platform: None for platform in SOCIAL_DOMAINS}
@@ -372,7 +403,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     tree.strip_tags(["script", "style", "code", "noscript", "svg"])
     clean_text = tree.body.text(separator=' ') if tree.body else tree.text(separator=' ')
     emails = list(set(EMAIL_REGEX.findall(clean_text)))
-    emails = [e for e in emails if not e.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'))]
+    emails = [
+        e for e in emails 
+        if not e.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js'))
+        and not any(domain in e.lower() for domain in ['example.com', 'schema.org', 'w3.org', 'domain.com'])
+    ]
     
     for mail in mailto_emails:
         if mail not in emails:
@@ -385,11 +420,45 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     for tech, sigs in TECH_SIGNATURES.items():
         if any(sig in html_lower for sig in sigs):
             detected_tech.append(tech)
-            
+
+    # 5. Schema.org JSON-LD Extraction
+    json_ld_schemas = []
+    raw_tree = HTMLParser(html_content)
+    for script in raw_tree.css('script[type="application/ld+json"]'):
+        try:
+            t = script.text().strip()
+            if t:
+                parsed_json = json.loads(t)
+                json_ld_schemas.append(parsed_json)
+        except Exception:
+            pass
+
+    # 6. RSS & Atom Feeds Discovery
+    rss_feeds = []
+    for link in raw_tree.css('link[type]'):
+        t_attr = link.attributes.get('type', '').lower()
+        if 'rss' in t_attr or 'atom' in t_attr or 'xml' in t_attr:
+            href = link.attributes.get('href')
+            if href:
+                rss_feeds.append(urllib.parse.urljoin(final_url, href))
+
+    # 7. Security Headers Audit
+    sec_headers = {
+        "strict_transport_security": resp_headers.get("strict-transport-security"),
+        "content_security_policy": resp_headers.get("content-security-policy"),
+        "x_frame_options": resp_headers.get("x-frame-options"),
+        "x_content_type_options": resp_headers.get("x-content-type-options"),
+        "referrer_policy": resp_headers.get("referrer-policy"),
+        "permissions_policy": resp_headers.get("permissions-policy")
+    }
+    present_sec = sum(1 for v in sec_headers.values() if v is not None)
+    security_score = round((present_sec / len(sec_headers)) * 100, 1)
+
     execution_time = round((time.time() - start_time) * 1000, 2)
     
     response_data = {
         "url": url,
+        "final_url": final_url,
         "status_code": status_code,
         "execution_time_ms": execution_time,
         "metadata": {
@@ -407,7 +476,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "emails": emails[:10],
             "phones": tel_phones[:5]
         },
-        "detected_technologies": detected_tech
+        "detected_technologies": detected_tech,
+        "rss_feeds": rss_feeds,
+        "json_ld_schemas": json_ld_schemas,
+        "security_headers": sec_headers,
+        "security_score_percentage": security_score
     }
 
     cache[url] = response_data
@@ -548,7 +621,7 @@ def home_ui():
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('results').style.display = 'block';
 
-                    document.getElementById('resUrl').innerText = data.url;
+                    document.getElementById('resUrl').innerText = data.final_url || data.url;
                     document.getElementById('resStatus').innerText = `${data.status_code} OK`;
                     document.getElementById('resTime').innerText = `⚡ ${data.execution_time_ms} ms`;
 
@@ -603,13 +676,14 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
-@app.get("/api/v1/extract", response_model=MetadataResponse, tags=["Full Extractor"])
+@app.get("/api/v1/extract", tags=["Full Extractor"])
 async def extract_metadata(
     url: str = Query(..., description="The target website URL to analyze (e.g. https://example.com)"),
+    fields: Optional[str] = Query(None, description="Optional comma-separated list of keys to filter response (e.g. metadata,contacts)"),
     user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
     dependencies: None = Depends(verify_rapidapi_secret)
 ):
@@ -618,9 +692,18 @@ async def extract_metadata(
     - **SEO Metadata**: Title, description, OG image, favicon, language, author.
     - **Contacts**: Public email addresses and telephone numbers.
     - **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.
-    - **Technologies**: CMS and framework signatures (WordPress, Shopify, React, Next.js, Tailwind, etc.).
+    - **Technologies**: 100+ CMS and framework signatures.
+    - **Structured Data**: Schema.org JSON-LD schemas.
+    - **Feeds**: RSS/Atom feed discovery.
+    - **Security**: HTTP security headers score.
     """
     data = await fetch_and_extract_raw(url, user_agent)
+    
+    if fields:
+        allowed_keys = [f.strip() for f in fields.split(',') if f.strip()]
+        filtered_data = {k: v for k, v in data.items() if k in allowed_keys or k in ['url', 'final_url', 'status_code', 'execution_time_ms']}
+        return filtered_data
+        
     return MetadataResponse(**data)
 
 @app.get("/api/v1/link-preview", response_model=LinkPreviewResponse, tags=["Link Preview"])
@@ -637,6 +720,7 @@ async def extract_link_preview(
     meta = data["metadata"]
     return LinkPreviewResponse(
         url=data["url"],
+        final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         title=meta["title"],
@@ -661,6 +745,7 @@ async def extract_contacts(
     contacts = data["contacts"]
     return ContactsResponse(
         url=data["url"],
+        final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         emails=contacts["emails"],
@@ -676,12 +761,54 @@ async def extract_tech_stack(
 ):
     """
     Dedicated endpoint for technology intelligence & CMS auditing:
-    Detects frameworks and CMS signatures (WordPress, Shopify, WooCommerce, Wix, React, Next.js, Vue, Nuxt, TailwindCSS, Bootstrap, etc.).
+    Detects 100+ frameworks and CMS signatures (WordPress, Shopify, WooCommerce, Wix, React, Next.js, Vue, Nuxt, TailwindCSS, Bootstrap, etc.).
     """
     data = await fetch_and_extract_raw(url, user_agent)
     return TechStackResponse(
         url=data["url"],
+        final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         detected_technologies=data["detected_technologies"]
+    )
+
+@app.get("/api/v1/schema", response_model=SchemaResponse, tags=["Structured Data"])
+async def extract_schema(
+    url: str = Query(..., description="The target URL to extract Schema.org JSON-LD structured data from"),
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
+    dependencies: None = Depends(verify_rapidapi_secret)
+):
+    """
+    Dedicated endpoint for Schema.org & JSON-LD structured data extraction:
+    Returns parsed product pricing, e-commerce reviews, article schemas, event details, and organization metadata.
+    """
+    data = await fetch_and_extract_raw(url, user_agent)
+    schemas = data["json_ld_schemas"]
+    return SchemaResponse(
+        url=data["url"],
+        final_url=data["final_url"],
+        status_code=data["status_code"],
+        execution_time_ms=data["execution_time_ms"],
+        json_ld_count=len(schemas),
+        json_ld_schemas=schemas
+    )
+
+@app.get("/api/v1/security", response_model=SecurityHeadersResponse, tags=["Security Audit"])
+async def extract_security_headers(
+    url: str = Query(..., description="The target URL to audit HTTP security headers"),
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
+    dependencies: None = Depends(verify_rapidapi_secret)
+):
+    """
+    Dedicated endpoint for HTTP Security Headers audit:
+    Inspects HSTS, Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and calculates a percentage security score.
+    """
+    data = await fetch_and_extract_raw(url, user_agent)
+    return SecurityHeadersResponse(
+        url=data["url"],
+        final_url=data["final_url"],
+        status_code=data["status_code"],
+        execution_time_ms=data["execution_time_ms"],
+        security_score_percentage=data["security_score_percentage"],
+        security_headers=data["security_headers"]
     )
