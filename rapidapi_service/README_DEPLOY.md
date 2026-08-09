@@ -64,11 +64,12 @@ No reliance on local hardware or home Wi-Fi:
    - Your API will automatically reject any request not routed through paying RapidAPI clients.
 
 4. **Set Up Pricing Plans (Monetization)**:
-   On the **Monetization** tab in RapidAPI, define your pricing tiers:
-   - **BASIC (Free)**: 100 requests / month (attracts developers).
-   - **PRO ($9 / mo)**: 10,000 requests / month.
-   - **ULTRA ($29 / mo)**: 50,000 requests / month.
-   - **MEGA ($79 / mo)**: 200,000 requests / month.
+   On the **Monetization** tab in RapidAPI, define your 4-tier pricing structure designed for maximum conversion:
+   - **FREE ($0 / mo)**: 500 requests / month (~16/day) - Hard cap (honest evaluation & side-projects).
+   - **STARTER ($5 / mo)**: 5,000 requests / month + $0.0015 per extra req (indie hackers & personal live apps).
+   - **GROWTH ($19 / mo)**: 30,000 requests / month + $0.0012 per extra req (startups & production SaaS).
+   - **SCALE ($59 / mo)**: 120,000 requests / month + $0.0008 per extra req (business platforms & high volume).
+
 
 5. **Publish**:
    Click **Publish to Hub**.
