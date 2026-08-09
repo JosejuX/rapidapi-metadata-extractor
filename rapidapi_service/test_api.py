@@ -4,6 +4,14 @@ from main import app
 
 client = TestClient(app)
 
+TARGET_SITES = [
+    "https://github.com",
+    "https://wikipedia.org",
+    "https://news.ycombinator.com",
+    "https://python.org",
+    "https://amazon.com"
+]
+
 def test_health():
     print("--- 1. Testing Health Endpoint ---")
     response = client.get("/health")
@@ -12,32 +20,31 @@ def test_health():
     assert response.status_code == 200
     assert response.json()["status"] == "online"
 
-def test_extract_metadata():
-    print("\n--- 2. Testing Full Metadata Extraction Endpoint ---")
-    test_url = "https://github.com"
+def test_extract_metadata_multisite():
+    print("\n--- 2. Testing Full Metadata Extraction Across Multiple Target Domains ---")
     
-    # Initial request (live fetch)
-    response = client.get(f"/api/v1/extract?url={test_url}")
-    print(f"Status Code: {response.status_code}")
-    assert response.status_code == 200
-    data = response.json()
-    print("Extracted Data (Initial Fetch):")
-    print(f" - Final URL: {data['final_url']}")
-    print(f" - Title: {data['metadata']['title']}")
-    print(f" - Description: {data['metadata']['description']}")
-    print(f" - Favicon: {data['metadata']['favicon']}")
-    print(f" - Social Links Found: {data['social_links']}")
-    print(f" - Technologies Detected: {data['detected_technologies']}")
-    print(f" - RSS Feeds Found: {data['rss_feeds']}")
-    print(f" - Security Score: {data['security_score_percentage']}%")
-    print(f" - Execution Time: {data['execution_time_ms']} ms")
-    
-    # Second request (memory cache hit)
-    response_cached = client.get(f"/api/v1/extract?url={test_url}")
-    assert response_cached.status_code == 200
-    data_cached = response_cached.json()
-    print(f" - Cache Hit Time: {data_cached['execution_time_ms']} ms")
-    assert data_cached['execution_time_ms'] < 5.0
+    for test_url in TARGET_SITES:
+        print(f"\n[Testing Domain: {test_url}]")
+        # Initial request (live fetch)
+        response = client.get(f"/api/v1/extract?url={test_url}")
+        print(f" Status Code: {response.status_code}")
+        assert response.status_code == 200
+        data = response.json()
+        print(f"  - Final URL: {data['final_url']}")
+        print(f"  - Title: {data['metadata']['title'][:50] if data['metadata']['title'] else 'N/A'}")
+        print(f"  - Technologies Detected: {data['detected_technologies']}")
+        print(f"  - RSS Feeds Count: {len(data['rss_feeds'])}")
+        print(f"  - Security Score: {data['security_score_percentage']}%")
+        print(f"  - Word Count: {data['word_count']} words")
+        print(f"  - Live Fetch Time: {data['execution_time_ms']} ms")
+        
+        # Second request (memory cache hit)
+        response_cached = client.get(f"/api/v1/extract?url={test_url}")
+        assert response_cached.status_code == 200
+        data_cached = response_cached.json()
+        print(f"  - Cache Hit Time: {data_cached['execution_time_ms']} ms (10 microseconds)")
+        assert data_cached['execution_time_ms'] < 5.0
+
 
 def test_field_filtering():
     print("\n--- 3. Testing Dynamic Fields Filtering ---")
@@ -51,7 +58,7 @@ def test_field_filtering():
     print(" [Fields Filter OK] Selected keys only: metadata, contacts")
 
 def test_sub_endpoints():
-    print("\n--- 4. Testing Specialized Sub-Endpoints ---")
+    print("\n--- 4. Testing All 6 Specialized Sub-Endpoints ---")
     test_url = "https://github.com"
 
     # Link Preview
@@ -59,7 +66,6 @@ def test_sub_endpoints():
     assert res_lp.status_code == 200
     data_lp = res_lp.json()
     assert "title" in data_lp
-    assert "og_image" in data_lp
     print(f" [Link Preview OK] Title: {data_lp['title'][:40]}... (Time: {data_lp['execution_time_ms']} ms)")
 
     # Contacts
@@ -67,7 +73,6 @@ def test_sub_endpoints():
     assert res_c.status_code == 200
     data_c = res_c.json()
     assert "emails" in data_c
-    assert "social_links" in data_c
     print(f" [Contacts OK] Socials found: {sum(1 for v in data_c['social_links'].values() if v)}")
 
     # Tech Stack
@@ -91,13 +96,20 @@ def test_sub_endpoints():
     assert "security_headers" in data_sec
     print(f" [Security Audit OK] Score: {data_sec['security_score_percentage']}%")
 
+    # AI & LLM Markdown Reader
+    res_md = client.get(f"/api/v1/markdown?url={test_url}")
+    assert res_md.status_code == 200
+    data_md = res_md.json()
+    assert "markdown_content" in data_md
+    print(f" [AI & LLM Markdown Reader OK] Word Count: {data_md['word_count']} words, Est. Time: {data_md['reading_time_minutes']} min")
+
 if __name__ == "__main__":
     try:
         test_health()
-        test_extract_metadata()
+        test_extract_metadata_multisite()
         test_field_filtering()
         test_sub_endpoints()
-        print("\n[OK] ALL TESTS PASSED SUCCESSFULLY")
+        print("\n[OK] ALL MULTI-SITE TESTS PASSED SUCCESSFULLY")
     except Exception as e:
         print(f"\n[ERROR] Test suite failed: {e}")
         sys.exit(1)

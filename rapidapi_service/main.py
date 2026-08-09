@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
 import httpx
-from selectolax.parser import HTMLParser
+from selectolax.parser import HTMLParser, Node
 from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,8 +39,8 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API powered by C-Lexbor parser, Rust ORJSON serialization, and HTTP/2 streaming multiplexing.",
-    version="1.4.0",
+    description="Ultra-fast, enterprise REST API powered by C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, and AI/LLM Clean Markdown Reader.",
+    version="1.5.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -64,6 +64,7 @@ EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
 FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$|^apple-touch-icon$', re.I)
 MAILTO_HREF_REGEX = re.compile(r'^mailto:', re.I)
 TEL_HREF_REGEX = re.compile(r'^tel:', re.I)
+MULTI_NEWLINE_REGEX = re.compile(r'\n{3,}')
 
 SOCIAL_DOMAINS = {
     'twitter': re.compile(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[a-zA-Z0-9_]+', re.I),
@@ -215,6 +216,10 @@ class MetadataResponse(BaseModel):
     rss_feeds: List[str]
     json_ld_schemas: List[Any]
     security_score_percentage: float
+    word_count: int
+    reading_time_minutes: float
+    markdown_content: str
+
 
 class LinkPreviewResponse(BaseModel):
     url: str
@@ -260,12 +265,88 @@ class SecurityHeadersResponse(BaseModel):
     security_score_percentage: float
     security_headers: Dict[str, Optional[str]]
 
+class MarkdownResponse(BaseModel):
+    url: str
+    final_url: str
+    status_code: int
+    execution_time_ms: float
+    title: Optional[str]
+    word_count: int
+    reading_time_minutes: float
+    markdown_content: str
+
 def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)):
     if RAPIDAPI_PROXY_SECRET and x_rapidapi_proxy_secret != RAPIDAPI_PROXY_SECRET:
         raise HTTPException(
             status_code=403,
             detail="Access denied: Invalid or missing X-RapidAPI-Proxy-Secret header."
         )
+
+def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, float]:
+    """
+    Sub-millisecond HTML-to-Markdown converter for LLMs/AI.
+    Locates primary content, strips noise, and formats headings, paragraphs, lists, links, and code blocks.
+    """
+    tree = HTMLParser(html_str)
+    
+    # Locate primary container
+    target_node = (
+        tree.css_first('article') or 
+        tree.css_first('main') or 
+        tree.css_first('[role="main"]') or 
+        tree.css_first('.post-content') or 
+        tree.css_first('.article-body') or 
+        tree.css_first('body') or 
+        tree.root
+    )
+    
+    if not target_node:
+        return "", 0, 0.0
+
+    # Strip noisy elements from HTML parser tree
+    target_node.strip_tags([
+        "nav", "header", "footer", "aside", "script", "style", 
+        "noscript", "svg", "iframe", "form", "button", "input"
+    ])
+
+    lines = []
+    
+    # Extract headings, paragraphs, lists, blockquotes, and code blocks
+    for element in target_node.css('h1, h2, h3, h4, h5, h6, p, li, blockquote, pre'):
+        tag = element.tag
+        txt = element.text(deep=True, separator=' ').strip()
+        if not txt:
+            continue
+
+        if tag == 'h1':
+            lines.append(f"\n# {txt}\n")
+        elif tag == 'h2':
+            lines.append(f"\n## {txt}\n")
+        elif tag == 'h3':
+            lines.append(f"\n### {txt}\n")
+        elif tag == 'h4':
+            lines.append(f"\n#### {txt}\n")
+        elif tag == 'h5':
+            lines.append(f"\n##### {txt}\n")
+        elif tag == 'h6':
+            lines.append(f"\n###### {txt}\n")
+        elif tag == 'p':
+            lines.append(f"{txt}\n")
+        elif tag == 'li':
+            lines.append(f"* {txt}")
+        elif tag == 'blockquote':
+            lines.append(f"> {txt}\n")
+        elif tag == 'pre':
+            lines.append(f"\n```\n{txt}\n```\n")
+
+    markdown_str = "\n".join(lines).strip()
+    markdown_str = MULTI_NEWLINE_REGEX.sub("\n\n", markdown_str)
+    
+    words = markdown_str.split()
+    word_count = len(words)
+    reading_time = round(word_count / 200.0, 1) if word_count > 0 else 0.0
+    
+    return markdown_str, word_count, reading_time
 
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
     start_time = time.time()
@@ -320,7 +401,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                 total_bytes += len(chunk)
                 if total_bytes >= MAX_BYTES:
                     break
-
 
         raw_bytes = b"".join(content_chunks)
         try:
@@ -403,8 +483,9 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                 tel_phones.append(phone)
 
     # 3. DOM Cleaning & Regex Email Extraction
-    tree.strip_tags(["script", "style", "code", "noscript", "svg"])
-    clean_text = tree.body.text(separator=' ') if tree.body else tree.text(separator=' ')
+    clean_tree = HTMLParser(html_content)
+    clean_tree.strip_tags(["script", "style", "code", "noscript", "svg"])
+    clean_text = clean_tree.body.text(separator=' ') if clean_tree.body else clean_tree.text(separator=' ')
     emails = list(set(EMAIL_REGEX.findall(clean_text)))
     emails = [
         e for e in emails 
@@ -457,6 +538,9 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     present_sec = sum(1 for v in sec_headers.values() if v is not None)
     security_score = round((present_sec / len(sec_headers)) * 100, 1)
 
+    # 8. Clean Markdown Article Extractor for AI/LLMs
+    markdown_content, word_count, reading_time = html_to_markdown_clean(html_content, final_url)
+
     execution_time = round((time.time() - start_time) * 1000, 2)
     
     response_data = {
@@ -483,7 +567,10 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         "rss_feeds": rss_feeds,
         "json_ld_schemas": json_ld_schemas,
         "security_headers": sec_headers,
-        "security_score_percentage": security_score
+        "security_score_percentage": security_score,
+        "word_count": word_count,
+        "reading_time_minutes": reading_time,
+        "markdown_content": markdown_content
     }
 
     cache[url] = response_data
@@ -679,8 +766,8 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.4.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2",
+        "version": "1.5.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + AI Markdown Engine",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
@@ -700,6 +787,7 @@ async def extract_metadata(
     - **Structured Data**: Schema.org JSON-LD schemas.
     - **Feeds**: RSS/Atom feed discovery.
     - **Security**: HTTP security headers score.
+    - **AI Reader**: Clean Markdown article text, word count & reading time.
     """
     data = await fetch_and_extract_raw(url, user_agent)
     
@@ -815,4 +903,27 @@ async def extract_security_headers(
         execution_time_ms=data["execution_time_ms"],
         security_score_percentage=data["security_score_percentage"],
         security_headers=data["security_headers"]
+    )
+
+@app.get("/api/v1/markdown", response_model=MarkdownResponse, tags=["AI & LLM Reader"])
+async def extract_clean_markdown_article(
+    url: str = Query(..., description="The target article/webpage URL to extract clean LLM-ready Markdown from"),
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
+    dependencies: None = Depends(verify_rapidapi_secret)
+):
+    """
+    Dedicated endpoint for AI Agents, ChatGPT, Claude & RAG pipelines:
+    Strips noise (ads, navs, footers, scripts) and converts webpage article text into clean, structured Markdown.
+    """
+    data = await fetch_and_extract_raw(url, user_agent)
+    meta = data["metadata"]
+    return MarkdownResponse(
+        url=data["url"],
+        final_url=data["final_url"],
+        status_code=data["status_code"],
+        execution_time_ms=data["execution_time_ms"],
+        title=meta["title"],
+        word_count=data["word_count"],
+        reading_time_minutes=data["reading_time_minutes"],
+        markdown_content=data["markdown_content"]
     )

@@ -132,13 +132,15 @@ curl --request GET \
 
 | Endpoint | Method | Category | Description |
 | :--- | :--- | :--- | :--- |
-| `/api/v1/extract` | `GET` | **Full Extractor** | Complete extraction payload (SEO metadata, contacts, social links, 100+ technologies, schema, security headers). Supports `fields` filter. |
+| `/api/v1/extract` | `GET` | **Full Extractor** | Complete extraction payload (SEO metadata, contacts, social links, 100+ technologies, schema, security, AI markdown). Supports `fields` filter. |
 | `/api/v1/link-preview` | `GET` | **Link Preview** | Lightweight payload optimized for social link previews (Title, OG Image, Favicon, Description). |
 | `/api/v1/contacts` | `GET` | **Lead Generation** | Targeted lead extraction (Public Emails, Phone Numbers, Social Profiles). |
 | `/api/v1/tech-stack` | `GET` | **Tech Stack** | Framework & CMS detector for 100+ technologies (WordPress, Shopify, React, Next.js, Tailwind, etc.). |
 | `/api/v1/schema` | `GET` | **Structured Data** | Schema.org JSON-LD parser (Product prices, articles, reviews, events, organization data). |
 | `/api/v1/security` | `GET` | **Security Audit** | HTTP security headers auditor (HSTS, CSP, X-Frame-Options, Referrer Policy) with percentage security score. |
+| `/api/v1/markdown` | `GET` | **AI & LLM Reader** | Clean article text to Markdown converter for ChatGPT, Claude, RAG, and AI Agents (Word count & reading time). |
 | `/health` | `GET` | **Health** | Health check returning API status and version. |
+
 
 ### Query Parameters
 
