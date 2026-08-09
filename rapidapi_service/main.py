@@ -11,7 +11,8 @@ from contextlib import asynccontextmanager
 import httpx
 from selectolax.parser import HTMLParser
 from cachetools import TTLCache
-from fastapi import FastAPI, HTTPException, Header, Depends, Query
+from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, ORJSONResponse
 from pydantic import BaseModel
@@ -41,28 +42,60 @@ async def lifespan(app: FastAPI):
         await http_client.aclose()
 
 # ------------------------------------------------------------------------------
-# FastAPI App Config (ORJSON Serializer + Ultra-Performance DNS & Streaming)
+# FastAPI App Config (ORJSON Serializer + Native IP Rate Limiter & Security)
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.1.0",
+    description="Ultra-fast, enterprise REST API with Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    version="2.2.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
 
-
-
-
+# CORS Fix: allow_credentials=False for security (API Key / Header Auth, no cookies)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 RAPIDAPI_PROXY_SECRET = os.getenv("RAPIDAPI_PROXY_SECRET", None)
+
+# ------------------------------------------------------------------------------
+# Native Application-Level IP Rate Limiter (60 Requests / Minute per IP)
+# ------------------------------------------------------------------------------
+ip_rate_tracker: TTLCache = TTLCache(maxsize=10000, ttl=60)
+
+def check_ip_rate_limit(request: Request):
+    """Enforces native 60 requests/minute limit per client IP address."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+
+    current_time = time.time()
+    history = ip_rate_tracker.get(client_ip, [])
+    valid_history = [t for t in history if current_time - t < 60]
+
+    if len(valid_history) >= 60:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded: 60 requests per minute limit reached per client IP address."
+        )
+
+    valid_history.append(current_time)
+    ip_rate_tracker[client_ip] = valid_history
+
+# Standard Error Responses for OpenAPI Documentation
+COMMON_RESPONSES = {
+    400: {"description": "Bad Request: Invalid URL format, missing domain hostname, or blocked by IP-Pinned Anti-SSRF Shield"},
+    403: {"description": "Forbidden: Invalid or missing X-RapidAPI-Proxy-Secret authentication header"},
+    429: {"description": "Too Many Requests: Native rate limit exceeded (60 requests/min per IP)"}
+}
+
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -970,25 +1003,21 @@ def home_ui():
     </html>
     """
 
-@app.get("/health", tags=["Health"])
+@app.get("/health", tags=["Health"], responses=COMMON_RESPONSES)
 def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.1.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + DNS Caching & Early-Abort Shield",
+        "version": "2.2.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + IP Rate Limiter & Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
-
-
-
-@app.get("/api/v1/extract", tags=["Full Extractor"])
+@app.get("/api/v1/extract", tags=["Full Extractor"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_metadata(
     url: str = Query(..., description="The target website URL to analyze (e.g. https://example.com)"),
     fields: Optional[str] = Query(None, description="Optional comma-separated list of keys to filter response (e.g. metadata,contacts)"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Extract full metadata payload (<200ms with Rust ORJSON + IP-Pinned Anti-SSRF Shield + HTTP/2 streaming):
@@ -1013,11 +1042,10 @@ async def extract_metadata(
         
     return MetadataResponse(**data)
 
-@app.get("/api/v1/link-preview", response_model=LinkPreviewResponse, tags=["Link Preview"])
+@app.get("/api/v1/link-preview", response_model=LinkPreviewResponse, tags=["Link Preview"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_link_preview(
     url: str = Query(..., description="The target URL to generate link preview for"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Lightweight endpoint optimized for link preview cards (Social Cards / Unfurl):
@@ -1038,11 +1066,10 @@ async def extract_link_preview(
         language=meta["language"]
     )
 
-@app.get("/api/v1/contacts", response_model=ContactsResponse, tags=["Lead Generation"])
+@app.get("/api/v1/contacts", response_model=ContactsResponse, tags=["Lead Generation"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_contacts(
     url: str = Query(..., description="The target URL to extract contact information and social handles from"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for lead enrichment & B2B prospecting:
@@ -1060,11 +1087,10 @@ async def extract_contacts(
         social_links=data["social_links"]
     )
 
-@app.get("/api/v1/tech-stack", response_model=TechStackResponse, tags=["Tech Stack"])
+@app.get("/api/v1/tech-stack", response_model=TechStackResponse, tags=["Tech Stack"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_tech_stack(
     url: str = Query(..., description="The target URL to inspect for CMS and technology stack signatures"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for technology intelligence & CMS auditing:
@@ -1079,11 +1105,10 @@ async def extract_tech_stack(
         detected_technologies=data["detected_technologies"]
     )
 
-@app.get("/api/v1/schema", response_model=SchemaResponse, tags=["Structured Data"])
+@app.get("/api/v1/schema", response_model=SchemaResponse, tags=["Structured Data"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_schema(
     url: str = Query(..., description="The target URL to extract Schema.org JSON-LD structured data from"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for Schema.org & JSON-LD structured data extraction:
@@ -1100,11 +1125,10 @@ async def extract_schema(
         json_ld_schemas=schemas
     )
 
-@app.get("/api/v1/security", response_model=SecurityHeadersResponse, tags=["Security Audit"])
+@app.get("/api/v1/security", response_model=SecurityHeadersResponse, tags=["Security Audit"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_security_headers(
     url: str = Query(..., description="The target URL to audit HTTP security headers"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for HTTP Security Headers audit:
@@ -1120,11 +1144,10 @@ async def extract_security_headers(
         security_headers=data["security_headers"]
     )
 
-@app.get("/api/v1/markdown", response_model=MarkdownResponse, tags=["AI & LLM Reader"])
+@app.get("/api/v1/markdown", response_model=MarkdownResponse, tags=["AI & LLM Reader"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_clean_markdown_article(
     url: str = Query(..., description="The target article/webpage URL to extract clean LLM-ready Markdown from"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for AI Agents, ChatGPT, Claude & RAG pipelines:
@@ -1143,11 +1166,10 @@ async def extract_clean_markdown_article(
         markdown_content=data["markdown_content"]
     )
 
-@app.get("/api/v1/seo-audit", response_model=SeoAuditResponse, tags=["SEO Audit"])
+@app.get("/api/v1/seo-audit", response_model=SeoAuditResponse, tags=["SEO Audit"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_seo_audit(
     url: str = Query(..., description="The target URL to perform automated 8-point SEO diagnostic audit"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for automated SEO diagnostic audit:
@@ -1164,11 +1186,10 @@ async def extract_seo_audit(
         warnings=data["seo_warnings"]
     )
 
-@app.get("/api/v1/links", response_model=LinksResponse, tags=["Link Extractor"])
+@app.get("/api/v1/links", response_model=LinksResponse, tags=["Link Extractor"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_links(
     url: str = Query(..., description="The target URL to extract and classify internal vs external hyperlinks"),
-    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header"),
-    dependencies: None = Depends(verify_rapidapi_secret)
+    user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for hyperlink extraction and domain classification:
@@ -1185,4 +1206,6 @@ async def extract_links(
         external_links_count=data["total_external_count"],
         internal_links=data["internal_links"],
         external_links=data["external_links"]
+
     )
+
