@@ -23,7 +23,8 @@
 ## 🌟 Key Features
 
 - ⚡ **Blazing Fast (<200ms)**: Powered by `selectolax` (C-Lexbor parser), Rust `ORJSON` serialization, `uvloop` C-event loop, HTTP/2 multiplexing, and 128KB streaming limits.
-- 🛡️ **Anti-SSRF Security Shield**: Built-in DNS resolution validator blocking access to private IPs, loopback (`127.0.0.1`, `localhost`), link-local, and AWS/GCP cloud metadata (`169.254.169.254`).
+- 🛡️ **IP-Pinned Anti-SSRF Shield**: DNS Rebinding & Redirect Proof protection. Resolves DNS once, validates IP against private ranges (`10.x`, `192.168.x`), loopback (`127.0.0.1`, `localhost`), link-local, and AWS/GCP cloud metadata (`169.254.169.254`), and pins the HTTP connection directly to the validated IP with TLS SNI extensions.
+
 - 🎯 **SEO, Canonical & Health Metrics**: Retrieves Page Title, Description, OG Image, Favicon, `canonical_url`, Language, Author, Theme Color, H1 Headings, Image Count, Accessibility Missing Alt Count, Link Count, and `final_url` redirect tracking.
 - 📧 **Clean Contact Extractor**: Deep extraction of public email addresses and phone numbers with smart DOM cleaning (`<script>` / `<style>` removal) to eliminate false positives.
 - 📲 **Social Profile Finder**: Auto-detects profiles on **Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, and TikTok**.

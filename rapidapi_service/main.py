@@ -5,7 +5,7 @@ import json
 import socket
 import ipaddress
 import urllib.parse
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from contextlib import asynccontextmanager
 
 import httpx
@@ -30,19 +30,19 @@ async def lifespan(app: FastAPI):
         http2=True,
         timeout=httpx.Timeout(4.5, connect=1.5, read=3.0),
         limits=httpx.Limits(max_keepalive_connections=200, max_connections=1000, keepalive_expiry=60.0),
-        follow_redirects=True
+        follow_redirects=False
     )
     yield
     if http_client:
         await http_client.aclose()
 
 # ------------------------------------------------------------------------------
-# FastAPI App Config (ORJSON Serializer + Anti-SSRF Protection)
+# FastAPI App Config (ORJSON Serializer + Anti-SSRF DNS Rebinding Shield)
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Anti-SSRF Protection, C-Lexbor parser, Rust ORJSON serialization, HTTP/2 streaming, AI Markdown Reader, and SEO Auditor.",
-    version="1.8.0",
+    description="Ultra-fast, enterprise REST API with IP-Pinned Anti-SSRF & DNS Rebinding Shield, C-Lexbor parser, Rust ORJSON serialization, and AI Markdown Reader.",
+    version="1.9.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -79,11 +79,7 @@ SOCIAL_DOMAINS = {
     'tiktok': re.compile(r'https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9._-]+', re.I)
 }
 
-# ------------------------------------------------------------------------------
-# Context-Aware Technology Signatures (Attribute & Structural Matching)
-# ------------------------------------------------------------------------------
 TECH_SIGNATURES = {
-    # CMS & Site Builders
     "WordPress": [r'wp-content', r'wp-includes', r'generator" content="wordpress'],
     "Shopify": [r'cdn\.shopify\.com', r'shopify\.theme', r'myshopify\.com'],
     "WooCommerce": [r'woocommerce', r'wc-ajax'],
@@ -101,7 +97,6 @@ TECH_SIGNATURES = {
     "Strapi": [r'strapi'],
     "Sanity": [r'cdn\.sanity\.io'],
 
-    # Frontend Frameworks & Libraries
     "React": [r'data-reactroot', r'_reactListening', r'react-dom'],
     "Next.js": [r'_next/static', r'__next', r'__next_f'],
     "Vue.js": [r'data-v-', r'vue\.js', r'vue\.min\.js'],
@@ -118,7 +113,6 @@ TECH_SIGNATURES = {
     "Bootstrap": [r'bootstrap\.min\.css', r'bootstrap\.bundle'],
     "TailwindCSS": [r'cdn\.tailwindcss\.com', r'tailwind'],
 
-    # Analytics & Tools
     "Google Analytics 4": [r'googletagmanager\.com/gtag/js', r'ga4'],
     "Google Tag Manager": [r'googletagmanager\.com/gtm\.js'],
     "Hotjar": [r'static\.hotjar\.com', r'hjid:'],
@@ -133,7 +127,6 @@ TECH_SIGNATURES = {
     "Fastly": [r'fastly\.net']
 }
 
-# Compile regular expressions for tech signatures
 COMPILED_TECH_SIGS = {
     tech: [re.compile(pattern, re.I) for pattern in patterns]
     for tech, patterns in TECH_SIGNATURES.items()
@@ -244,15 +237,17 @@ def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)
         )
 
 # ------------------------------------------------------------------------------
-# Anti-SSRF Security Shield (Validates DNS resolution against private/internal IPs)
+# IP-Pinned Anti-SSRF Shield (Prevents DNS Rebinding / TOCTOU Race Conditions)
 # ------------------------------------------------------------------------------
-def validate_url_ssrf(url: str) -> str:
+def validate_url_ssrf(url: str) -> Tuple[str, str]:
+    """
+    Resolves DNS hostname ONCE, validates IP address against private/loopback/cloud-metadata ranges,
+    and returns a tuple of (ip_pinned_url, original_hostname) to eliminate DNS Rebinding completely.
+    """
     parsed = urllib.parse.urlparse(url)
-    if not parsed.scheme:
-        url = "https://" + url
-        parsed = urllib.parse.urlparse(url)
-
-    if parsed.scheme.lower() not in ("http", "https"):
+    scheme = (parsed.scheme or "https").lower()
+    
+    if scheme not in ("http", "https"):
         raise HTTPException(
             status_code=400,
             detail="SSRF Protection: Only 'http' and 'https' protocols are permitted."
@@ -272,14 +267,19 @@ def validate_url_ssrf(url: str) -> str:
             detail="SSRF Protection: Access to loopback, internal, or cloud metadata hostnames is forbidden."
         )
 
+    port = parsed.port or (443 if scheme == "https" else 80)
+    
+    # 1. Resolve DNS ONCE
     try:
-        addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        addr_info = socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror:
         raise HTTPException(
             status_code=400,
             detail=f"SSRF Protection: Unable to resolve hostname '{hostname}' via DNS."
         )
 
+    # 2. Validate all resolved IP addresses
+    resolved_ip = None
     for item in addr_info:
         ip_str = item[4][0]
         try:
@@ -297,13 +297,29 @@ def validate_url_ssrf(url: str) -> str:
                     status_code=400,
                     detail=f"SSRF Protection: Target domain resolves to private/internal IP address ({ip_str}), which is forbidden."
                 )
+            if not resolved_ip:
+                resolved_ip = ip_str
         except ValueError:
             pass
 
-    return url
+    if not resolved_ip:
+        raise HTTPException(
+            status_code=400,
+            detail="SSRF Protection: No valid public IP address found for target domain."
+        )
+
+    # 3. Construct IP-Pinned Connection URL
+    path_and_query = parsed.path or "/"
+    if parsed.query:
+        path_and_query += "?" + parsed.query
+
+    # Format IPv6 brackets if needed
+    formatted_ip = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    ip_pinned_url = f"{scheme}://{formatted_ip}:{port}{path_and_query}"
+
+    return ip_pinned_url, hostname
 
 def normalize_cache_url(url: str) -> str:
-    """Normalize URL by stripping marketing tracking parameters and standardizing scheme/port."""
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
     netloc = parsed.netloc.lower()
@@ -382,10 +398,7 @@ def html_to_markdown_clean(html_str: str, base_url: str) -> tuple[str, int, floa
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
     start_time = time.time()
     
-    # 1. SSRF Security Shield Validation
-    url = validate_url_ssrf(url)
-    
-    # 2. Normalized Cache Lookup
+    # Normalized Cache Lookup
     cache_key = normalize_cache_url(url)
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
@@ -394,13 +407,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
 
     ua_str = str(user_agent) if (user_agent and not hasattr(user_agent, 'default')) else None
     
-    headers = {
-        "User-Agent": ua_str or USER_AGENTS[0],
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br"
-    }
-    
     client = http_client
     should_close_client = False
     if client is None:
@@ -408,11 +414,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             http2=True,
             timeout=httpx.Timeout(4.5, connect=1.5, read=3.0),
             limits=httpx.Limits(max_keepalive_connections=200, max_connections=1000, keepalive_expiry=60.0),
-            follow_redirects=True
+            follow_redirects=False
         )
         should_close_client = True
 
-    MAX_BYTES = 128 * 1024  # 128 KB Stream limit for maximum speed
+    MAX_BYTES = 128 * 1024
     MAX_REDIRECTS = 5
     redirect_count = 0
     current_url = url
@@ -425,10 +431,24 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
 
     try:
         while redirect_count <= MAX_REDIRECTS:
-            # Enforce Anti-SSRF DNS/IP validation on EVERY redirect hop
-            current_url = validate_url_ssrf(current_url)
+            # IP-Pinning Anti-SSRF Validation (Eliminates DNS Rebinding & Redirect SSRF)
+            ip_pinned_url, original_hostname = validate_url_ssrf(current_url)
 
-            async with client.stream("GET", current_url, headers=headers, follow_redirects=False) as response:
+            req_headers = {
+                "User-Agent": ua_str or USER_AGENTS[0],
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Host": original_hostname
+            }
+
+            async with client.stream(
+                "GET", 
+                ip_pinned_url, 
+                headers=req_headers, 
+                extensions={"sni_hostname": original_hostname},
+                follow_redirects=False
+            ) as response:
                 if response.status_code in (301, 302, 303, 307, 308):
                     redirect_location = response.headers.get("location") or response.headers.get("Location")
                     if not redirect_location:
@@ -444,7 +464,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
 
                 response.raise_for_status()
                 status_code = response.status_code
-                final_url = str(response.url)
+                final_url = current_url
                 resp_headers = {k.lower(): v for k, v in response.headers.items()}
                 
                 async for chunk in response.aiter_bytes():
@@ -460,7 +480,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             html_content = raw_bytes.decode(encoding, errors="replace")
         except Exception:
             html_content = raw_bytes.decode("utf-8", errors="replace")
-
 
     except Exception as e:
         if should_close_client:
@@ -580,7 +599,6 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
         if mail not in emails:
             emails.append(mail)
 
-    # Precision Context-Aware Tech Stack Detection
     detected_tech = []
     for tech, patterns in COMPILED_TECH_SIGS.items():
         if any(pattern.search(html_content) for pattern in patterns):
@@ -914,8 +932,8 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "1.8.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Anti-SSRF Shield",
+        "version": "1.9.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + IP-Pinned Anti-SSRF Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
 
@@ -927,7 +945,7 @@ async def extract_metadata(
     dependencies: None = Depends(verify_rapidapi_secret)
 ):
     """
-    Extract full metadata payload (<200ms with Rust ORJSON + Anti-SSRF Shield + HTTP/2 streaming):
+    Extract full metadata payload (<200ms with Rust ORJSON + IP-Pinned Anti-SSRF Shield + HTTP/2 streaming):
     - **SEO Metadata**: Title, description, OG image, favicon, canonical URL, language, author, theme color, H1 tags.
     - **Page Health Metrics**: Content length (bytes), image count, accessibility missing alt count, link count.
     - **Contacts**: Public email addresses and telephone numbers.
@@ -937,7 +955,7 @@ async def extract_metadata(
     - **Link Extractor**: Categorized internal vs external hyperlinks.
     - **Structured Data**: Schema.org JSON-LD schemas.
     - **Feeds**: RSS/Atom feed discovery.
-    - **Security**: HTTP security headers score & Anti-SSRF domain validation.
+    - **Security**: HTTP security headers score & IP-Pinned Anti-SSRF Protection.
     - **AI Reader**: Clean Markdown article text, word count & reading time.
     """
     data = await fetch_and_extract_raw(url, user_agent)
