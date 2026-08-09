@@ -3,4 +3,5 @@ __pycache__/
 .pytest_cache/
 .env
 RAPIDAPI_PROMOTION_KIT.md
+DEVTO_POST.md
 
