@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
+RAPIDAPI_PROMOTION_KIT.md
+
