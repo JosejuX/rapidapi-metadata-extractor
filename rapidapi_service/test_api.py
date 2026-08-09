@@ -1,6 +1,8 @@
 import sys
+import re
 from fastapi.testclient import TestClient
 from main import app
+
 
 client = TestClient(app)
 
@@ -26,7 +28,13 @@ SSRF_ATTACK_URLS = [
     "http://10.0.0.1",
     "http://192.168.1.1",
     "http://0.0.0.0",
-    "ftp://example.com"
+    "ftp://example.com",
+    "file:///etc/passwd",
+    "gopher://example.com",
+    "javascript:alert(1)",
+    "http://2130706433",
+    "http://0x7f000001",
+    "http://0177.0.0.1"
 ]
 
 def test_health():
@@ -41,7 +49,7 @@ def test_ssrf_security_shield():
     print("\n--- 2. Testing Anti-SSRF Security Shield (Loopback, Private & Cloud Metadata Block) ---")
     for attack_url in SSRF_ATTACK_URLS:
         response = client.get(f"/api/v1/extract?url={attack_url}")
-        print(f" [SSRF Security Check] Target: {attack_url} -> Status: {response.status_code}")
+        print(f" [SSRF Security Check] Target: {attack_url:<25} -> Status: {response.status_code}")
         assert response.status_code == 400
         detail = response.json().get("detail", "")
         assert "SSRF Protection" in detail
@@ -62,6 +70,17 @@ def test_crlf_user_agent_sanitizer():
     response = client.get("/api/v1/extract?url=https://github.com", headers={"User-Agent": malicious_ua})
     assert response.status_code == 200
     print(" [CRLF Header Injection Check] Passed cleanly without HTTP header splitting")
+
+def test_error_ip_sanitizer():
+    print("\n--- 2.3 Testing Error Message Internal IP Sanitization ---")
+    response = client.get("/api/v1/extract?url=https://github.com/nonexistent_page_404_test_xyz")
+    assert response.status_code == 400
+    detail = response.json().get("detail", "")
+    assert "Unable to access target URL" in detail
+    # Ensure internal IP pinned string is not leaked in exception message
+    assert not re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', detail)
+    print(f" [Error Message IP Sanitization Check] Passed: Internal IP address hidden cleanly")
+
 
 
 
@@ -166,10 +185,12 @@ if __name__ == "__main__":
         test_ssrf_security_shield()
         test_schemeless_urls()
         test_crlf_user_agent_sanitizer()
+        test_error_ip_sanitizer()
         test_extract_metadata_multisite()
         test_field_filtering()
         test_all_sub_endpoints()
         print(f"\n[OK] ALL SECURITY AND MULTI-SITE TESTS PASSED SUCCESSFULLY")
+
 
 
     except Exception as e:

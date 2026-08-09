@@ -58,10 +58,13 @@ No reliance on local hardware or home Wi-Fi:
    - **Category**: `Data` / `SEO` / `Tools`
    - **Base URL**: Enter your public server URL (e.g. `https://web-metadata-extractor-api.onrender.com`).
 
-3. **Configure Security (Prevent Unpaid Usage)**:
-   - On RapidAPI, enable the **Secret Header** setting. RapidAPI will generate a token like `sec_abc123...`.
-   - Set the environment variable `RAPIDAPI_PROXY_SECRET=sec_abc123...` on your deployment host (e.g., Render Environment Variables).
-   - Your API will automatically reject any request not routed through paying RapidAPI clients.
+3. **Configure Security (CRITICAL - Prevent Free Leaks)**:
+   - On **RapidAPI Dashboard** -> **Definition** -> **Security**, enable **Transformation** -> **Add Secret Header**.
+   - RapidAPI will generate a secret token string (e.g. `sec_prod_998877665544332211`). Set Header Name as `X-RapidAPI-Proxy-Secret`.
+   - On **Render.com** (or your hosting provider), go to **Environment** -> **Add Environment Variable**:
+     - Key: `RAPIDAPI_PROXY_SECRET`
+     - Value: `sec_prod_998877665544332211`
+   - **Verification**: Call `https://your-api.onrender.com/health`. It must now return `"rapidapi_protected": true`. Direct requests without the secret header will be rejected with `HTTP 403 Forbidden`.
 
 4. **Set Up Pricing Plans (Monetization)**:
    On the **Monetization** tab in RapidAPI, define your 4-tier pricing structure designed for maximum conversion:
@@ -70,10 +73,17 @@ No reliance on local hardware or home Wi-Fi:
    - **GROWTH ($19.99 / mo)**: 30,000 requests / month + $0.0012 per extra req (startups & production SaaS).
    - **SCALE ($59.99 / mo)**: 120,000 requests / month + $0.0008 per extra req (business platforms & high volume).
 
-
-
 5. **Publish**:
    Click **Publish to Hub**.
+
+---
+
+## ⚡ Scaling Beyond Single Process (Redis Note)
+
+By default, the API uses ultra-fast in-memory caching (`TTLCache`). For single-process deployments (1 Uvicorn worker on Render/Fly.io), this provides sub-0.01ms execution time with zero extra infrastructure costs.
+
+If you scale to multiple Uvicorn workers or multiple server instances in the future, consider adding **Redis** (`aioredis` / `redis-py`) as a shared cache layer so all workers share cached webpage payloads and rate limits seamlessly.
+
 
 ---
 

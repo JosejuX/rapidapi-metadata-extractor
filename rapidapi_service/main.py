@@ -46,11 +46,12 @@ async def lifespan(app: FastAPI):
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.2.0",
+    description="Ultra-fast, enterprise REST API with Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
+    version="2.3.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
+
 
 # CORS Fix: allow_credentials=False for security (API Key / Header Auth, no cookies)
 app.add_middleware(
@@ -560,10 +561,16 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     except Exception as e:
         if should_close_client:
             await client.aclose()
+        err_msg = str(e)
+        if 'original_hostname' in locals() and original_hostname:
+            err_msg = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', original_hostname, err_msg)
         raise HTTPException(
             status_code=400,
-            detail=f"Unable to access target URL: {str(e)}"
+            detail=f"Unable to access target URL: {err_msg}"
         )
+
+
+
     finally:
         if should_close_client:
             await client.aclose()
@@ -1008,10 +1015,11 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.2.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + IP Rate Limiter & Security Shield",
+        "version": "2.3.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET)
     }
+
 
 @app.get("/api/v1/extract", tags=["Full Extractor"], responses=COMMON_RESPONSES, dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)])
 async def extract_metadata(
