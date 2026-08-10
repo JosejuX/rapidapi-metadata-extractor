@@ -1,4 +1,4 @@
-# 🚀 Deployment & Monetization Guide — v2.6.0
+# 🚀 Deployment & Monetization Guide — v4.1.0
 
 This guide explains how to deploy the **Web Metadata & Contact Extractor API** at $0 cost and connect it to **RapidAPI** for passive income.
 
@@ -33,6 +33,7 @@ python load_test.py
    - **Build Command**: `pip install -r rapidapi_service/requirements.txt`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
    - **Root Directory**: `rapidapi_service`
+   - **Environment variable `PYTHON_VERSION`: `3.12.7`** — don't skip this. Without an explicit pin, Render resolves to whatever its newest default Python is, and `pydantic-core` (a `pydantic` dependency) has no prebuilt wheel for very new Python versions — pip then falls back to compiling it via `maturin`/Rust, which fails outright because Render's build filesystem is read-only where cargo needs to write its cache. `runtime.txt` (also included in this repo) is a second attempt at the same pin and may or may not be honored depending on your plan — the environment variable is the reliable one.
 4. Render provides a free HTTPS URL like `https://your-api.onrender.com`.
 
 ### Option B: Fly.io
@@ -104,7 +105,7 @@ runtime bug later.
    - **Header Name**: `X-RapidAPI-Proxy-Secret`
    - Copy the generated value into your `RAPIDAPI_PROXY_SECRET` environment variable.
 4. Configure **Monetization** plans:
-   - **FREE ($0/mo)**: 100 requests/month — honest evaluation limit.
+   - **FREE ($0/mo)**: 500 requests/month — 100/month cuts off a real evaluation in minutes; 500 lets developers actually test it (see `RAPIDAPI_PROMOTION_KIT.md` for the reasoning).
    - **STARTER ($4.99/mo)**: 5,000 requests/month + $0.0015/extra req.
    - **GROWTH ($19.99/mo)**: 30,000 requests/month + $0.0012/extra req.
    - **SCALE ($59.99/mo)**: 120,000 requests/month + $0.0008/extra req.
