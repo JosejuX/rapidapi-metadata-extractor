@@ -20,8 +20,9 @@ def test_top_level_product_still_works():
         "brand": {"name": "Acme"},
         "aggregateRating": {"ratingValue": "4.5", "reviewCount": "120"},
     }
-    schemas = extract_json_ld(_tree_with_jsonld(payload))
-    product = extract_product_data(schemas)
+    tree = _tree_with_jsonld(payload)
+    schemas = extract_json_ld(tree)
+    product, _ = extract_product_data(tree, schemas)
     assert product["name"] == "Widget"
     assert product["price"] == "19.99"
     assert product["brand"] == "Acme"
@@ -47,11 +48,12 @@ def test_product_inside_at_graph_is_now_found():
             },
         ],
     }
-    schemas = extract_json_ld(_tree_with_jsonld(payload))
+    tree = _tree_with_jsonld(payload)
+    schemas = extract_json_ld(tree)
     # sanity: the raw json_ld_schemas field is untouched (still just the raw parsed object)
     assert schemas == [payload], "raw json_ld_schemas must stay exactly as parsed (API backward compat)"
 
-    product = extract_product_data(schemas)
+    product, _ = extract_product_data(tree, schemas)
     assert product is not None, "Product nested under @graph should now be found"
     assert product["name"] == "Graph Widget"
     assert product["sku"] == "GW-001"
@@ -77,7 +79,7 @@ def test_product_inside_top_level_array():
     html = f'<html><head><script type="application/ld+json">{json.dumps(payload)}</script></head><body></body></html>'
     tree = HTMLParser(html)
     schemas = extract_json_ld(tree)
-    product = extract_product_data(schemas)
+    product, _ = extract_product_data(tree, schemas)
     assert product is not None
     assert product["name"] == "Array Widget"
     print("  [OK] Product found inside a top-level JSON-LD array")
@@ -89,7 +91,8 @@ def test_non_dict_schema_does_not_crash():
     break the request)."""
     print("\n--- Product: malformed/non-dict JSON-LD does not crash ---")
     schemas = ["just a string", 42, None, ["nested", "list"]]
-    product = extract_product_data(schemas)
+    tree = HTMLParser("<html><head></head><body></body></html>")
+    product, _ = extract_product_data(tree, schemas)
     assert product is None
     print("  [OK] non-dict JSON-LD entries handled gracefully, no crash")
 

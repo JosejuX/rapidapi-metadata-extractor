@@ -52,6 +52,11 @@ from app.extraction.profiles import (
     needs_clean_text,
     needs_tree,
 )
+from app.extraction.quality import (
+    compute_quality,
+    detect_product_conflicts,
+    product_field_confidence,
+)
 from app.extraction.security import extract_security_headers
 from app.extraction.seo import run_seo_audit
 from app.extraction.tech import detect_technologies_detailed, names_in_signature_order
@@ -162,7 +167,9 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
 
     json_ld_schemas = extract_json_ld(tree)
     rss_feeds = extract_rss_feeds(tree, final_url)
-    product_data = extract_product_data(json_ld_schemas)
+    product_data, product_field_sources = extract_product_data(tree, json_ld_schemas)
+    product_warnings = detect_product_conflicts(product_field_sources)
+    product_confidence = product_field_confidence(product_field_sources)
 
     sec_headers, security_score, security_grades = extract_security_headers(resp_headers)
 
@@ -194,6 +201,18 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
 
     execution_time = round((time.time() - start_time) * 1000, 2)
 
+    bot_protection = detect_bot_protection(html_content, status_code)
+    quality = compute_quality(
+        has_title=bool(metadata["title"]),
+        has_description=bool(metadata["description"]),
+        has_json_ld=bool(json_ld_schemas),
+        has_opengraph_product=any(s.get("opengraph") is not None for s in product_field_sources.values()),
+        has_microdata_product=any(s.get("microdata") is not None for s in product_field_sources.values()),
+        content_truncated=content_truncated,
+        bot_protection_detected=bot_protection,
+        product_warnings=product_warnings,
+    )
+
     response_data = {
         "url": url,
         "final_url": final_url,
@@ -211,6 +230,8 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         "rss_feeds": rss_feeds,
         "json_ld_schemas": json_ld_schemas,
         "product_data": product_data,
+        "product_field_confidence": product_confidence,
+        "quality": quality,
         "security_headers": sec_headers,
         "security_score_percentage": security_score,
         "security_header_grades": security_grades,
@@ -228,7 +249,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         # §13.4: Byte-level transparency
         "content_truncated": content_truncated,
         "bytes_downloaded": bytes_downloaded,
-        "bot_protection_detected": detect_bot_protection(html_content, status_code),
+        "bot_protection_detected": bot_protection,
     }
 
     cache[cache_key] = {"data": response_data, "computed": FULL_PROFILE}
@@ -335,7 +356,9 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
         fields["rss_feeds"] = extract_rss_feeds(tree, final_url)
 
     if "product" in profile:
-        fields["product_data"] = extract_product_data(json_ld_schemas or [])
+        product_data, product_field_sources = extract_product_data(tree, json_ld_schemas or [])
+        fields["product_data"] = product_data
+        fields["product_field_confidence"] = product_field_confidence(product_field_sources)
 
     if "security" in profile:
         sec_headers, security_score, security_grades = extract_security_headers(resp_headers)

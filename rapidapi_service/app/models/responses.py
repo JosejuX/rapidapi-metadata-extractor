@@ -102,6 +102,31 @@ class PhoneDetail(BaseModel):
     valid: bool = False
 
 
+class ProductFieldConfidence(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    value: Optional[Any] = None
+    confidence: float
+    source: Optional[str] = None
+    agreement: List[str] = []
+
+
+class QualityWarning(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    field: Optional[str] = None
+    type: str
+
+
+class Quality(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    score: float
+    rendered: bool = False
+    sources_used: List[str] = []
+    warnings: List[QualityWarning] = []
+
+
 class MetadataResponse(BaseModel):
     url: str
     final_url: str
@@ -117,6 +142,8 @@ class MetadataResponse(BaseModel):
     rss_feeds: List[str]
     json_ld_schemas: List[Any]
     product_data: Optional[Dict[str, Any]] = None
+    product_field_confidence: Dict[str, ProductFieldConfidence] = {}
+    quality: Optional[Quality] = None
     security_score_percentage: float
     seo_score_percentage: float
     seo_passed_checks: List[str]
