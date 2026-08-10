@@ -49,6 +49,16 @@ SOCIAL_HOSTNAME_MAP: Dict[str, str] = {
     "vimeo.com": "vimeo", "www.vimeo.com": "vimeo",
     # Snapchat
     "snapchat.com": "snapchat", "www.snapchat.com": "snapchat",
+    # Mastodon: decentralized, so there's no single domain to match — a
+    # hostname map can only ever catch a curated subset of instances (no
+    # false positives, but real misses for self-hosted/less-common ones).
+    # Correctly identifying "any Mastodon instance" would need a rel="me"
+    # webfinger check, which is a network request this fast-path extractor
+    # deliberately doesn't make (Plan §17: "No convertir esto en requests
+    # adicionales"). Covers the largest public instances only.
+    "mastodon.social": "mastodon", "mastodon.online": "mastodon",
+    "mstdn.social": "mastodon", "fosstodon.org": "mastodon",
+    "hachyderm.io": "mastodon", "mastodon.world": "mastodon",
 }
 SOCIAL_PLATFORM_KEYS = set(SOCIAL_HOSTNAME_MAP.values())
 

@@ -50,8 +50,23 @@ TECH_SIGNATURES = {
     "Fastly": [r'fastly\.net']
 }
 
+# Plan §61: cheap prefilter before expensive regex. Every pattern above is a
+# plain literal string with only `\.` as a regex metacharacter (verified: no
+# `|`, `(`, `[`, `*`, `+`, `?`, `^`, `$`, `{` anywhere in TECH_SIGNATURES) —
+# so `\.` -> `.` recovers the exact literal each pattern matches. A `str in`
+# check against a once-lowercased copy of the document is a CPython-optimized
+# substring search, cheaper than running re.search (even for a literal
+# pattern) — and it turns "~90 regex scans of the whole document" into
+# "~90 substring checks, with a regex re-run only for the rare actual hits".
+# If TECH_SIGNATURES ever gains a real regex pattern (alternation, classes,
+# quantifiers), its literal-derived prefilter would stop matching correctly —
+# there is no runtime guard for that here, so any future non-literal pattern
+# must get its own prefilter or be excluded from this optimization.
 COMPILED_TECH_SIGS = {
-    tech: [re.compile(pattern, re.I) for pattern in patterns]
+    tech: [
+        (re.compile(pattern, re.I), pattern.replace(r'\.', '.').lower())
+        for pattern in patterns
+    ]
     for tech, patterns in TECH_SIGNATURES.items()
 }
 
@@ -82,9 +97,10 @@ TECH_CATEGORIES: Dict[str, str] = {
 
 
 def detect_technologies(html_content: str) -> List[str]:
+    html_lower = html_content.lower()
     detected = []
     for tech, patterns in COMPILED_TECH_SIGS.items():
-        if any(pattern.search(html_content) for pattern in patterns):
+        if any(literal in html_lower and pattern.search(html_content) for pattern, literal in patterns):
             detected.append(tech)
     return detected
 
@@ -111,10 +127,13 @@ def detect_technologies_detailed(html_content: str) -> List[Dict[str, Any]]:
     additive, separate pass reusing the same compiled patterns so there's no
     extra regex compilation cost.
     """
+    html_lower = html_content.lower()
     results: List[Dict[str, Any]] = []
     for tech, patterns in COMPILED_TECH_SIGS.items():
         evidence: List[str] = []
-        for pattern in patterns:
+        for pattern, literal in patterns:
+            if literal not in html_lower:
+                continue
             match = pattern.search(html_content)
             if match:
                 evidence.append(match.group(0))
