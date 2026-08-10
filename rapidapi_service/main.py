@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
     description="Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.7.4",
+    version="2.8.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -82,15 +82,25 @@ RAPIDAPI_PROXY_SECRET = os.getenv("RAPIDAPI_PROXY_SECRET", None)
 TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
 
 # ------------------------------------------------------------------------------
-# Native Application-Level IP Rate Limiter (60 Requests / Minute per IP)
+# Application Rate Limiter (Distributed Redis or Native TTLCache Fallback)
 # ------------------------------------------------------------------------------
+REDIS_URL = os.getenv("REDIS_URL", None)
+redis_client = None
+
+if REDIS_URL:
+    try:
+        import redis
+        redis_client = redis.from_url(REDIS_URL)
+        logger.info("Distributed Redis Rate Limiter active: %s", REDIS_URL)
+    except Exception as e:
+        logger.warning("Redis initialization failed, falling back to in-memory TTLCache: %s", e)
+
 ip_rate_tracker: TTLCache = TTLCache(maxsize=10000, ttl=60)
 
 def check_ip_rate_limit(request: Request):
-    """Enforces native 60 requests/minute limit per client IP address.
-    
-    X-Forwarded-For is only trusted when TRUST_PROXY=true env var is set,
-    preventing IP spoofing bypasses in non-proxied deployments.
+    """Enforces 60 requests/minute limit per client IP address.
+    Uses distributed Redis when REDIS_URL is set (multi-worker/cluster),
+    falling back to in-memory TTLCache for single-instance deployments.
     """
     client_ip = request.client.host if request.client else "127.0.0.1"
 
@@ -98,6 +108,26 @@ def check_ip_rate_limit(request: Request):
         forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
             client_ip = forwarded_for.split(",")[0].strip()
+
+    if redis_client:
+        try:
+            rate_key = f"rate:{client_ip}"
+            pipe = redis_client.pipeline()
+            pipe.incr(rate_key)
+            pipe.expire(rate_key, 60)
+            res = pipe.execute()
+            request_count = res[0]
+            if request_count > 60:
+                logger.warning("Redis Rate limit exceeded for IP: %s (%d req/min)", client_ip, request_count)
+                raise HTTPException(
+                    status_code=429,
+                    detail="Rate limit exceeded: 60 requests per minute limit reached per client IP address."
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning("Redis rate check error, falling back to local tracker: %s", e)
 
     current_time = time.time()
     history = ip_rate_tracker.get(client_ip, [])
@@ -1212,7 +1242,7 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.7.4",
+        "version": "2.8.0",
         "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
         "trust_proxy": TRUST_PROXY
