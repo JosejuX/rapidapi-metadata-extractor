@@ -9,7 +9,7 @@ thorough; this is the intended outcome of Plan §23, not a bug — scores are
 explicitly a heuristic, improvable metric per Plan §24's same framing for
 security scores, not a fixed contract value.
 """
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 def run_seo_audit(

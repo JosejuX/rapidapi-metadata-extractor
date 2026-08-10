@@ -1,7 +1,7 @@
 """Prometheus scrape endpoint (Plan section 39)."""
 from fastapi import APIRouter, Response
 
-from app.observability.metrics import render_metrics, CONTENT_TYPE_LATEST
+from app.observability.metrics import CONTENT_TYPE_LATEST, render_metrics
 
 router = APIRouter(tags=["Observability"])
 

@@ -14,6 +14,7 @@ public contract and is deferred to a versioned v2 per Plan §36 ("cambios
 breaking -> v2") rather than snuck into this pass.
 """
 from typing import Optional
+
 from fastapi import HTTPException, Request
 from fastapi.responses import ORJSONResponse
 

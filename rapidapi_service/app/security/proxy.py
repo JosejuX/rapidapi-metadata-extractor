@@ -1,5 +1,6 @@
 """Trusted-proxy client IP resolution (Plan section 8.5)."""
 import ipaddress
+
 from fastapi import Request
 
 from app import config

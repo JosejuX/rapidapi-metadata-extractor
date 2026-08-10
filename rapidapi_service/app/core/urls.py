@@ -5,7 +5,7 @@ FastAPI/security imports) to avoid circular imports between those two.
 """
 import urllib.parse
 
-from app.core.errors import AppError, UNSUPPORTED_SCHEME, INVALID_URL
+from app.core.errors import INVALID_URL, UNSUPPORTED_SCHEME, AppError
 
 
 def normalize_and_validate_url(url: str) -> str:

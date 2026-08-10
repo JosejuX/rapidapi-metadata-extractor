@@ -7,6 +7,7 @@ line Plan §41 shows as its example (request completion, with request_id +
 host + duration_ms + endpoint)."""
 import time
 import uuid
+
 from fastapi import Request
 
 from app.core.logging import logger

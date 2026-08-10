@@ -7,8 +7,6 @@ import re
 import urllib.parse
 from typing import Any, Dict, List, Set
 
-from selectolax.parser import HTMLParser
-
 from app.extraction.social import SOCIAL_HOSTNAME_MAP, SOCIAL_PLATFORM_KEYS
 
 MAILTO_HREF_REGEX = re.compile(r'^mailto:', re.I)

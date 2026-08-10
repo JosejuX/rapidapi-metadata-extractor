@@ -20,7 +20,7 @@ trade-off consistent with the rest of this codebase's per-process caches.
 import time
 from typing import Dict, Set
 
-from app.core.errors import AppError, CIRCUIT_OPEN
+from app.core.errors import CIRCUIT_OPEN, AppError
 
 FAILURE_THRESHOLD = 5
 COOLDOWN_SECONDS = 30

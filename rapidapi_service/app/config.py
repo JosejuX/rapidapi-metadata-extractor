@@ -7,8 +7,8 @@ place instead of scattered across the monolith. Migrating to pydantic-settings
 with full startup validation is a later, separate improvement (not required
 to preserve behavior for this pass).
 """
-import os
 import ipaddress
+import os
 from typing import List, Optional
 
 # ------------------------------------------------------------------------------
@@ -16,6 +16,17 @@ from typing import List, Optional
 # ------------------------------------------------------------------------------
 RAPIDAPI_PROXY_SECRET: Optional[str] = os.getenv("RAPIDAPI_PROXY_SECRET", None)
 HEALTH_DETAILS_SECRET: Optional[str] = os.getenv("HEALTH_DETAILS_SECRET", None)
+
+# ALLOWED_ORIGINS: comma-separated origins for CORS. Defaults to "*" — this API
+# is auth'd by header/API-key (not cookies; allow_credentials=False), so a
+# wildcard is the standard, safe pattern for a public multi-tenant API that
+# RapidAPI subscribers embed from arbitrary browser origins. Only narrow this
+# if you're self-hosting for a fixed set of known frontends.
+_ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS: List[str] = (
+    ["*"] if _ALLOWED_ORIGINS_RAW.strip() == "*"
+    else [o.strip() for o in _ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
+)
 
 # TRUST_PROXY / TRUSTED_PROXY_IPS:
 # If TRUSTED_PROXY_IPS is set (comma-separated CIDRs or IPs), only X-Forwarded-For

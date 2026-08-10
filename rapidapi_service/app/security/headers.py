@@ -1,9 +1,10 @@
 """RapidAPI proxy-secret verification dependency."""
 from typing import Optional
+
 from fastapi import Header
 
 from app import config
-from app.core.errors import AppError, AUTH_FORBIDDEN
+from app.core.errors import AUTH_FORBIDDEN, AppError
 
 
 def verify_rapidapi_secret(x_rapidapi_proxy_secret: Optional[str] = Header(None)):

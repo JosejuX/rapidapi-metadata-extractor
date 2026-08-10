@@ -4,22 +4,22 @@ race conditions: resolve DNS hostname ONCE, validate every resolved IP against
 private/loopback/reserved/cloud-metadata ranges, then connect to the pinned IP
 with the original Host/SNI preserved.
 """
-import socket
 import asyncio
 import ipaddress
+import socket
 import urllib.parse
 from typing import Set, Tuple
 
+from app.cache.singleflight import single_flight
+from app.core.errors import DNS_FAILURE, INVALID_URL, SSRF_BLOCKED, AppError
 from app.core.logging import logger
 from app.core.urls import normalize_and_validate_url
-from app.core.errors import AppError, INVALID_URL, SSRF_BLOCKED, DNS_FAILURE
 from app.fetcher.dns import dns_cache
-from app.cache.singleflight import single_flight
 from app.observability import metrics
 
 # §4.8: Block known internal/reserved hostnames by name (defense-in-depth before DNS)
 _BLOCKED_HOSTNAME_LITERALS: Set[str] = {
-    "localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254",
+    "localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254",  # nosec B104 - blocklist literal, not a bind address
     "metadata.google.internal", "metadata", "internal", "local"
 }
 _BLOCKED_HOSTNAME_SUFFIXES = (".localhost", ".local", ".internal", ".example", ".test", ".invalid")
@@ -126,7 +126,7 @@ async def validate_url_ssrf(url: str) -> Tuple[str, str]:
                 raise AppError(
                     status_code=400,
                     code=SSRF_BLOCKED,
-                    detail=f"SSRF Protection: Target domain resolves to private/internal/reserved IP address, which is forbidden."
+                    detail="SSRF Protection: Target domain resolves to private/internal/reserved IP address, which is forbidden."
                 )
             if not resolved_ip:
                 resolved_ip = ip_str

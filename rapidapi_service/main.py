@@ -17,20 +17,29 @@ connect/reconnect); those are proxied live via module __getattr__ (PEP 562)
 so `main.http_client` etc. always reflect the current value instead of a
 stale import-time copy.
 """
-from app.main import app
-
-from app.cache.l1 import cache
-from app.fetcher.dns import dns_cache
-from app.ratelimit.limiter import ip_rate_tracker
-
-from app.core.urls import normalize_and_validate_url
-from app.security.ssrf import validate_url_ssrf
-from app.fetcher.client import sanitize_user_agent
 from app.cache.keys import normalize_cache_url
+from app.cache.l1 import cache
+from app.core.urls import normalize_and_validate_url
 from app.extraction.pipeline import fetch_and_extract_raw
-
 from app.fetcher import client as _fetcher_client
+from app.fetcher.client import sanitize_user_agent
+from app.fetcher.dns import dns_cache
+from app.main import app
 from app.ratelimit import redis as _redis_state
+from app.ratelimit.limiter import ip_rate_tracker
+from app.security.ssrf import validate_url_ssrf
+
+__all__ = [
+    "app",
+    "cache",
+    "dns_cache",
+    "ip_rate_tracker",
+    "normalize_and_validate_url",
+    "validate_url_ssrf",
+    "sanitize_user_agent",
+    "normalize_cache_url",
+    "fetch_and_extract_raw",
+]
 
 # Old private name, still used by .github/workflows/ci.yml's Redis integration step.
 _try_connect_redis = _redis_state.try_connect_redis

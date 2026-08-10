@@ -1,12 +1,13 @@
 """AI/LLM-ready Markdown reader endpoint."""
 from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
-from app.security.headers import verify_rapidapi_secret
-from app.ratelimit.limiter import check_ip_rate_limit
 from app.extraction.pipeline import fetch_and_extract_raw
 from app.models.responses import MarkdownResponse
+from app.ratelimit.limiter import check_ip_rate_limit
+from app.security.headers import verify_rapidapi_secret
 
 router = APIRouter(tags=["AI & LLM Reader"])
 

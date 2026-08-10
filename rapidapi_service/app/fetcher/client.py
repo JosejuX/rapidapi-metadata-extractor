@@ -16,15 +16,22 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from app import config
-from app.core.logging import logger
 from app.core.errors import (
-    AppError, REDIRECT_LIMIT, UNSUPPORTED_CONTENT_TYPE, CONNECTION_TIMEOUT,
-    UPSTREAM_TIMEOUT, UPSTREAM_4XX, UPSTREAM_5XX, TLS_ERROR, HEADERS_TOO_LARGE,
+    CONNECTION_TIMEOUT,
+    HEADERS_TOO_LARGE,
+    REDIRECT_LIMIT,
+    TLS_ERROR,
+    UNSUPPORTED_CONTENT_TYPE,
+    UPSTREAM_4XX,
+    UPSTREAM_5XX,
+    UPSTREAM_TIMEOUT,
+    AppError,
 )
-from app.security.ssrf import validate_url_ssrf
-from app.security.limits import acquire_host_slot, release_host_slot
+from app.core.logging import logger
 from app.fetcher import circuit_breaker
 from app.observability import metrics
+from app.security.limits import acquire_host_slot, release_host_slot
+from app.security.ssrf import validate_url_ssrf
 
 http_client: Optional[httpx.AsyncClient] = None
 

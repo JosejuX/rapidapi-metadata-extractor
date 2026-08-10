@@ -14,10 +14,10 @@ event-loop wakeups on the hot path.
 import asyncio
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Tuple
+from typing import Dict
 
 from app import config
-from app.core.errors import AppError, CONCURRENCY_LIMITED
+from app.core.errors import CONCURRENCY_LIMITED, AppError
 from app.observability import metrics
 
 _host_semaphores: Dict[str, asyncio.Semaphore] = {}

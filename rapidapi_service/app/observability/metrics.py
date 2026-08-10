@@ -22,7 +22,13 @@ REGISTRY) so /metrics output stays focused on this API's own instruments —
 no default Python process/platform collectors (which pull in gc stats,
 memory maps, etc.) unless explicitly wanted later.
 """
-from prometheus_client import Counter, Histogram, CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import (  # noqa: F401 (CONTENT_TYPE_LATEST re-exported for app.api.observability)
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 registry = CollectorRegistry()
 

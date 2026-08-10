@@ -1,5 +1,6 @@
 """Pydantic response models — same shapes as pre-refactor main.py (Plan section 35/97)."""
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 

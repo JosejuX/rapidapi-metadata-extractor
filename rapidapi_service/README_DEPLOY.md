@@ -65,6 +65,7 @@ Set these in your hosting panel (**Render → Environment → Add Variable**):
 | `RAPIDAPI_PROXY_SECRET` | **YES** | Secret token from RapidAPI. Blocks all direct backend access without it. |
 | `TRUST_PROXY` | No | Set `true` if behind Render/Fly.io reverse proxy to use real client IP in rate limiter. Default: `false`. |
 | `WORKERS` | No | Number of Uvicorn workers. Default `1` (free tier). Set `4` on paid plans for higher throughput. |
+| `ALLOWED_ORIGINS` | No | Comma-separated list of allowed CORS origins. Default `*` — safe for a public API keyed by header/API-key (no cookies). Set a fixed list only if you're self-hosting for a known set of frontends. |
 
 **Verify protection is active:**
 ```bash

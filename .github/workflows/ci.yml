@@ -24,8 +24,13 @@ jobs:
         run: pip install ruff pyright
 
       - name: Ruff lint
-        run: ruff check rapidapi_service/main.py rapidapi_service/app --select E,W,F,I --ignore E501 || true
+        run: ruff check rapidapi_service/main.py rapidapi_service/app --select E,W,F,I --ignore E501
 
+      # Informational only: ~20 pre-existing type errors (generics in
+      # cache/singleflight.py, FastAPI exception-handler signature typing,
+      # config.py IPv4/IPv6Network union, etc.). Plan §74 explicitly calls for
+      # *gradual* typing adoption rather than a blocking gate that stalls
+      # unrelated PRs — flip to blocking once those are cleared.
       - name: Pyright type check (informational)
         run: pyright rapidapi_service/main.py rapidapi_service/app || true
 
@@ -45,11 +50,29 @@ jobs:
       - name: Install audit tools
         run: pip install pip-audit bandit
 
+      # Blocking, with a documented allowlist for known-accepted findings.
+      # The 7 starlette advisories below (Host/path→request.url spoofing,
+      # StaticFiles Range-header DoS, StaticFiles Windows-UNC SSRF, HTTPEndpoint
+      # verb dispatch) were individually reviewed: this app never reads
+      # request.url.hostname/path for a security decision (only a metrics
+      # label in app/core/tracing.py) and never uses StaticFiles/FileResponse/
+      # HTTPEndpoint, so none are reachable here. Bumping starlette to 1.x
+      # (and fastapi alongside it, 26 minor versions behind) is a deliberate,
+      # separately-tracked upgrade — not something to force through a CI gate.
+      # Any *new* CVE in any dependency still fails the build.
       - name: pip-audit (CVE scan)
-        run: pip-audit -r rapidapi_service/requirements.txt --skip-editable || true
+        run: |
+          pip-audit -r rapidapi_service/requirements.txt --skip-editable \
+            --ignore-vuln PYSEC-2026-161 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249 \
+            --ignore-vuln PYSEC-2026-1942 \
+            --ignore-vuln PYSEC-2026-1941 \
+            --ignore-vuln PYSEC-2026-2281 \
+            --ignore-vuln PYSEC-2026-2280
 
       - name: bandit SAST scan
-        run: bandit -r rapidapi_service/main.py rapidapi_service/app -ll --skip B101 || true
+        run: bandit -r rapidapi_service/main.py rapidapi_service/app -ll --skip B101
 
   # ────────────────────────────────────────────────────────────────────────────
   # 3. Unit + Integration Tests (§73 - unit → security → integration)
@@ -69,8 +92,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r rapidapi_service/requirements.txt
+          pip install pytest
 
-      - name: Run full test suite
+      - name: Run fixture-based test suite (SSRF matrix, circuit breaker,
+          singleflight, host concurrency, observability, quality checks)
+        working-directory: rapidapi_service
+        run: pytest tests/ -q
+
+      - name: Run live-network smoke suite
         working-directory: rapidapi_service
         run: python test_api.py
 
@@ -115,8 +144,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r rapidapi_service/requirements.txt
+          pip install pytest
 
-      - name: Run tests with Redis enabled
+      - name: Run Redis-dependent test suite (rate-limit atomicity, etc.)
+        working-directory: rapidapi_service
+        env:
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/ -q
+
+      - name: Run Redis connect/reconnect smoke check
         working-directory: rapidapi_service
         env:
           REDIS_URL: redis://localhost:6379/0

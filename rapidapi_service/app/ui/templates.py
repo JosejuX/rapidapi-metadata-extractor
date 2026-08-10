@@ -123,6 +123,28 @@ HOME_HTML = """
                 analyzeUrl();
             }
 
+            function clearChildren(el) {
+                while (el.firstChild) el.removeChild(el.firstChild);
+            }
+
+            function mutedSpan(text) {
+                const span = document.createElement('span');
+                span.style.color = '#64748b';
+                span.textContent = text;
+                return span;
+            }
+
+            // Only ever assign http(s) URLs to href — blocks javascript:/data:
+            // and other script-executing schemes from a scraped page's links.
+            function isSafeHttpUrl(value) {
+                try {
+                    const u = new URL(value, window.location.href);
+                    return u.protocol === 'http:' || u.protocol === 'https:';
+                } catch {
+                    return false;
+                }
+            }
+
             async function analyzeUrl() {
                 const url = document.getElementById('urlInput').value;
                 if(!url) return;
@@ -145,35 +167,54 @@ HOME_HTML = """
                     document.getElementById('metaDesc').innerText = data.metadata.description || 'Not detected';
                     document.getElementById('metaLang').innerText = data.metadata.language || 'Unspecified';
 
-                    // Socials
+                    // Socials — data comes from an arbitrary scraped page, so it's
+                    // treated as untrusted: build DOM nodes via textContent/setAttribute
+                    // rather than innerHTML, and only assign hrefs with a safe scheme.
                     const socialsDiv = document.getElementById('socialsContainer');
-                    socialsDiv.innerHTML = '';
+                    clearChildren(socialsDiv);
                     let foundSocials = false;
                     for (const [net, link] of Object.entries(data.social_links)) {
                         if (link) {
                             foundSocials = true;
-                            socialsDiv.innerHTML += `<a href="${link}" target="_blank" class="social-tag">${net.toUpperCase()}</a>`;
+                            const a = document.createElement('a');
+                            if (isSafeHttpUrl(link)) a.setAttribute('href', link);
+                            a.target = '_blank';
+                            a.rel = 'noopener noreferrer';
+                            a.className = 'social-tag';
+                            a.textContent = net.toUpperCase();
+                            socialsDiv.appendChild(a);
                         }
                     }
-                    if(!foundSocials) socialsDiv.innerHTML = '<span style="color: #64748b;">No social links found</span>';
+                    if (!foundSocials) socialsDiv.appendChild(mutedSpan('No social links found'));
 
-                    // Emails
+                    // Emails — also untrusted, scraped from the target page.
                     const emailsDiv = document.getElementById('emailsContainer');
+                    clearChildren(emailsDiv);
                     if (data.contacts.emails && data.contacts.emails.length > 0) {
-                        emailsDiv.innerHTML = data.contacts.emails.map(e => `<span style="color: #38bdf8;">${e}</span>`).join(', ');
-                    } else {
-                        emailsDiv.innerHTML = '<span style="color: #64748b;">No public emails on main page</span>';
-                    }
-
-                    // Tech Stack
-                    const techDiv = document.getElementById('techContainer');
-                    techDiv.innerHTML = '';
-                    if (data.detected_technologies && data.detected_technologies.length > 0) {
-                        data.detected_technologies.forEach(t => {
-                            techDiv.innerHTML += `<span class="tech-tag">${t}</span>`;
+                        data.contacts.emails.forEach((e, i) => {
+                            if (i > 0) emailsDiv.appendChild(document.createTextNode(', '));
+                            const span = document.createElement('span');
+                            span.style.color = '#38bdf8';
+                            span.textContent = e;
+                            emailsDiv.appendChild(span);
                         });
                     } else {
-                        techDiv.innerHTML = '<span style="color: #64748b;">Standard HTML / No known CMS signatures</span>';
+                        emailsDiv.appendChild(mutedSpan('No public emails on main page'));
+                    }
+
+                    // Tech Stack — names come from our own fixed signature list
+                    // server-side, but rendered the same safe way for consistency.
+                    const techDiv = document.getElementById('techContainer');
+                    clearChildren(techDiv);
+                    if (data.detected_technologies && data.detected_technologies.length > 0) {
+                        data.detected_technologies.forEach(t => {
+                            const span = document.createElement('span');
+                            span.className = 'tech-tag';
+                            span.textContent = t;
+                            techDiv.appendChild(span);
+                        });
+                    } else {
+                        techDiv.appendChild(mutedSpan('Standard HTML / No known CMS signatures'));
                     }
 
                 } catch(err) {

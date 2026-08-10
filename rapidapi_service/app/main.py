@@ -9,11 +9,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 
 from app import config
-from app.lifecycle import lifespan
-from app.core.tracing import add_request_id
+from app.api import (
+    contacts,
+    extract,
+    health,
+    links,
+    markdown,
+    metadata,
+    observability,
+    schema,
+    security,
+    seo,
+    tech_stack,
+    ui,
+)
 from app.core.errors import AppError, app_error_handler
-
-from app.api import ui, health, extract, metadata, contacts, tech_stack, schema, security, markdown, seo, links, observability
+from app.core.tracing import add_request_id
+from app.lifecycle import lifespan
 
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
@@ -27,10 +39,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS: allow_credentials=False for security (API Key / Header Auth, no cookies)
+# CORS: allow_credentials=False for security (API Key / Header Auth, no cookies).
+# Origins default to "*" (see app.config.ALLOWED_ORIGINS docstring) but are
+# configurable via ALLOWED_ORIGINS for self-hosted deployments that want to
+# restrict to known frontends.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

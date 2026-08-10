@@ -10,7 +10,6 @@ everywhere — the same reason the original monolith used `global`.
 import asyncio
 import random as _random
 import urllib.parse
-from typing import Optional
 
 from app import config
 from app.core.logging import logger

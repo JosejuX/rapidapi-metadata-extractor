@@ -10,25 +10,24 @@ from typing import Any, Dict, Optional
 
 from selectolax.parser import HTMLParser
 
-from app.core.urls import normalize_and_validate_url
-from app.core.errors import AppError
-from app.cache.l1 import cache
 from app.cache.keys import build_cache_key
-from app.cache.singleflight import single_flight
+from app.cache.l1 import cache
 from app.cache.negative import get_cached_negative, maybe_cache_negative
+from app.cache.singleflight import single_flight
+from app.core.errors import AppError
 from app.core.logging import logger
-from app.observability import metrics
-from app.fetcher.client import fetch_raw_page, sanitize_user_agent
-
-from app.extraction.metadata import extract_metadata_fields
-from app.extraction.links import extract_links_and_socials
+from app.core.urls import normalize_and_validate_url
 from app.extraction.contacts import extract_emails
-from app.extraction.tech import detect_technologies_detailed, names_in_signature_order
 from app.extraction.jsonld import extract_json_ld, extract_rss_feeds
+from app.extraction.links import extract_links_and_socials
+from app.extraction.markdown import extract_summary_and_keywords, html_to_markdown_clean
+from app.extraction.metadata import extract_metadata_fields
 from app.extraction.product import extract_product_data
 from app.extraction.security import extract_security_headers
 from app.extraction.seo import run_seo_audit
-from app.extraction.markdown import html_to_markdown_clean, extract_summary_and_keywords
+from app.extraction.tech import detect_technologies_detailed, names_in_signature_order
+from app.fetcher.client import fetch_raw_page, sanitize_user_agent
+from app.observability import metrics
 
 
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None, head_only: bool = False) -> Dict[str, Any]:

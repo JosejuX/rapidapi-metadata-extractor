@@ -59,7 +59,7 @@
 > [!NOTE]
 > - **Latency & Performance SLA**: Server-side processing overhead (DOM cleaning, C-Lexbor parsing, Rust serialization) averages **< 5ms**. Live execution times depend on the target website's network latency and origin server response time. Repeating requests for the same URL hit the in-memory cache and return in **< 0.01ms**.
 > - **IPv6 & IPv4-Mapped SSRF Shield**: The Anti-SSRF validation engine enforces strict resolution checks across both IPv4 and IPv6, blocking loopback (`127.0.0.1`, `::1`), link-local (`169.254.169.254`, `fe80::/10`), and IPv4-mapped IPv6 (`::ffff:127.0.0.1`) addresses.
-> - **Redis Rate Limiter (Fixed-Window, Auto-Reconnect)**: When `REDIS_URL` is configured, rate limiting is distributed across all workers via Redis `INCR`/`EXPIRE`. Redis is pinged at startup and re-validated every 30 seconds. On failure, the service falls back to per-process TTLCache immediately and marks `redis_status: degraded_fallback` in `/health/details`.
+> - **Redis Rate Limiter (Fixed-Window, Auto-Reconnect)**: When `REDIS_URL` is configured, rate limiting is distributed across all workers via a single atomic Redis Lua script (`INCR` + first-hit `EXPIRE` in one round-trip — no window where a dropped connection could leave a counter with no TTL). Redis is pinged at startup and re-validated every 30 seconds. On failure, the service falls back to per-process TTLCache immediately and marks `redis_status: degraded_fallback` in `/health/details`.
 > - **Split Health Endpoints**: `/health` returns a minimal public liveness payload. `/health/details` returns full operational status (Redis mode, trust_proxy, engine) and requires the `X-Health-Secret` header when `HEALTH_DETAILS_SECRET` env var is set.
 > - **Horizontal Scaling**: Single-instance → in-memory TTLCache (60 req/min/IP). Multi-worker → distributed Redis. Enterprise scale → RapidAPI Gateway or Nginx.
 > - **Zero-Trust Self-Hosting**: Full Dockerfile, Gunicorn config, and test suite included for self-hosted production deployments.
@@ -223,7 +223,11 @@ cd rapidapi-metadata-extractor/rapidapi_service
 # 2. Install
 pip install -r requirements.txt
 
-# 3. Test suite (14 SSRF vectors + 12 global domains)
+# 3. Fixture-based test suite (SSRF matrix, circuit breaker, single-flight, rate-limit atomicity, ...)
+pip install pytest
+pytest tests/ -q
+
+# 3b. Live-network smoke suite (14 SSRF vectors + 12 global domains)
 python test_api.py
 
 # 4. Load test (concurrent requests benchmark)

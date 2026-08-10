@@ -4,8 +4,8 @@ httpx==0.28.1
 pydantic==2.11.7
 cachetools==5.5.2
 selectolax==0.3.27
-h2==4.2.0
-orjson==3.10.18
+h2==4.4.1
+orjson==3.11.6
 httptools==0.6.4
 gunicorn==23.0.0
 redis==5.2.1
