@@ -2,9 +2,11 @@
 
   ![Web Metadata & Contact Extractor API](assets/banner.png)
 
-  # 🚀 Web Metadata, OpenGraph & Contact Extractor API
+  # Turn any URL into structured intelligence.
 
-  **Ultra-fast (<200ms) REST API to extract SEO metadata, contacts, social profiles, tech stack, Schema.org JSON-LD, Security Headers, and AI-ready Markdown from any URL.**
+  **Extract SEO, technologies, contacts, products, social profiles, security signals, and AI-ready content from any public website — with one API call.**
+
+  Free to try. No signup required for the demo.
 
   [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
@@ -16,18 +18,71 @@
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
   [![CI](https://github.com/JosejuX/rapidapi-metadata-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/JosejuX/rapidapi-metadata-extractor/actions)
 
-  [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
+  [🎮 **Try the Live Demo**](https://rapidapi-metadata-extractor.onrender.com/) • [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
 
   ![Terminal demo: curl request and JSON response](assets/demo-terminal.svg)
 
 </div>
 
-**Try it right now** (swap in your key from RapidAPI):
+**Paste a URL, get real results in seconds** — [rapidapi-metadata-extractor.onrender.com](https://rapidapi-metadata-extractor.onrender.com/) runs the actual pipeline live, no API key needed. Try your own site, or one of these:
+
+[![Analyze github.com](https://img.shields.io/badge/Analyze-github.com-38bdf8?logo=github)](https://rapidapi-metadata-extractor.onrender.com/api/v1/extract?url=github.com) [![Analyze stripe.com](https://img.shields.io/badge/Analyze-stripe.com-635bff)](https://rapidapi-metadata-extractor.onrender.com/api/v1/extract?url=stripe.com) [![Analyze wikipedia.org](https://img.shields.io/badge/Analyze-wikipedia.org-000000)](https://rapidapi-metadata-extractor.onrender.com/api/v1/extract?url=wikipedia.org)
+
+**Or call it directly** (swap in your key from RapidAPI for production use):
 
 ```bash
 curl "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=github.com" \
   -H "X-RapidAPI-Key: YOUR_KEY" -H "X-RapidAPI-Host: web-metadata-and-contact-extractor-p.rapidapi.com"
 ```
+
+---
+
+## 🎯 Use Cases
+
+| | Use case | What you get |
+|:---|:---|:---|
+| 🧲 | **Lead generation** | Find companies on a given tech stack (e.g. Shopify) with a weak SEO score, then prioritize outreach. |
+| 🤖 | **AI agents** | Feed `markdown_content` and structured JSON straight into an agent or RAG pipeline as clean, LLM-ready context for any URL. |
+| 🔎 | **SEO audits** | Run the 13-point on-page score plus graded security headers across a URL list, on a schedule. |
+| 🛒 | **Ecommerce** | Pull product name/price/currency/availability/brand from Schema.org, OpenGraph, and Microdata — cross-checked for conflicts. |
+| 🕵️ | **Competitive intelligence** | Track a competitor's tech stack, metadata, and product data over time by re-checking the same URL list. |
+
+<details>
+<summary><b>Example: lead generation — flag Shopify sites with a weak SEO score</b></summary>
+
+```python
+import requests
+
+RAPIDAPI_KEY = "YOUR_RAPIDAPI_KEY"
+HEADERS = {
+    "X-RapidAPI-Key": RAPIDAPI_KEY,
+    "X-RapidAPI-Host": "web-metadata-and-contact-extractor-p.rapidapi.com",
+}
+BASE = "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract"
+
+for url in ["shop-a.com", "shop-b.com", "shop-c.com"]:
+    data = requests.get(BASE, headers=HEADERS, params={"url": url}).json()
+    if "Shopify" in data["detected_technologies"] and data["seo_score_percentage"] < 60:
+        print(f"{url}: Shopify + {data['seo_score_percentage']}% SEO -> outreach candidate")
+```
+</details>
+
+<details>
+<summary><b>Example: AI agent tool call — clean Markdown for any URL</b></summary>
+
+```python
+import requests
+
+def read_url_as_markdown(url: str) -> str:
+    """Tool function an LLM agent can call to read any public webpage."""
+    resp = requests.get(
+        "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/markdown",
+        headers={"X-RapidAPI-Key": "YOUR_KEY", "X-RapidAPI-Host": "web-metadata-and-contact-extractor-p.rapidapi.com"},
+        params={"url": url},
+    ).json()
+    return resp["markdown_content"]
+```
+</details>
 
 ---
 
