@@ -214,11 +214,17 @@ def test_edge_case_resilience():
     assert "Port 22 is not allowed" in res_port.json().get("detail", "")
     print(" [Edge Case OK] Non-standard public port 22 blocked cleanly with 400 status code")
 
-    # 6.5 Custom User-Agent Cache Key Isolation
-    res_ua_1 = client.get("/api/v1/extract?url=https://python.org", headers={"User-Agent": "Googlebot/2.1"})
-    res_ua_2 = client.get("/api/v1/extract?url=https://python.org", headers={"User-Agent": "CustomScraper/1.0"})
+    # 6.5 Custom User-Agent Cache Key Isolation (Deterministic inspection)
+    from main import cache
+    res_ua_1 = client.get("/api/v1/extract?url=https://python.org&user_agent=Googlebot/2.1")
+    res_ua_2 = client.get("/api/v1/extract?url=https://python.org&user_agent=CustomScraper/1.0")
     assert res_ua_1.status_code == 200 and res_ua_2.status_code == 200
-    print(" [Edge Case OK] Custom User-Agent requests cache isolated without cross-contamination")
+
+    cache_keys_str = [str(k) for k in cache.keys()]
+    has_ua1 = any("Googlebot" in k for k in cache_keys_str)
+    has_ua2 = any("CustomScraper" in k for k in cache_keys_str)
+    assert has_ua1 and has_ua2
+    print(" [Edge Case OK] Custom User-Agent requests cache isolated deterministically into separate keys")
 
 if __name__ == "__main__":
     try:

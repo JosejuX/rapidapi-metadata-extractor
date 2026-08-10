@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
     description="Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.6.0",
+    version="2.7.4",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -1212,7 +1212,7 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.6.0",
+        "version": "2.7.4",
         "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
         "trust_proxy": TRUST_PROXY

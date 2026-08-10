@@ -3,7 +3,7 @@
   "info": {
     "title": "Web Metadata & Contact Extractor API",
     "description": "Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), High-Res Google Favicon Engine, Smart NLP Auto-Summary & Keywords, Video/Audio Embed Code Generator, SSL Status, User-Agent Aware Cache Isolation, Web Port Whitelist (80/443/8080/8443), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    "version": "2.7.3"
+    "version": "2.7.4"
   },
   "paths": {
     "/health": {
