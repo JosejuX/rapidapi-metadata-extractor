@@ -1,0 +1,112 @@
+{
+  "label": "post-refactor app/ package",
+  "generated_at": "2026-08-10T12:12:30Z",
+  "scenarios": {
+    "cache_miss_basic": {
+      "bytes": 1188,
+      "n": 200,
+      "p50_ms": 0.933,
+      "p95_ms": 1.049,
+      "p99_ms": 1.56,
+      "mean_ms": 0.999,
+      "throughput_per_sec": 1001.4
+    },
+    "cache_miss_unicode": {
+      "bytes": 1007,
+      "n": 200,
+      "p50_ms": 0.765,
+      "p95_ms": 0.823,
+      "p99_ms": 0.969,
+      "mean_ms": 0.774,
+      "throughput_per_sec": 1292.3
+    },
+    "cache_miss_malformed": {
+      "bytes": 293,
+      "n": 200,
+      "p50_ms": 0.36,
+      "p95_ms": 0.423,
+      "p99_ms": 0.543,
+      "mean_ms": 0.369,
+      "throughput_per_sec": 2710.7
+    },
+    "cache_miss_spa": {
+      "bytes": 235,
+      "n": 200,
+      "p50_ms": 0.338,
+      "p95_ms": 0.382,
+      "p99_ms": 0.418,
+      "mean_ms": 0.344,
+      "throughput_per_sec": 2908.2
+    },
+    "cache_miss_many_links": {
+      "bytes": 33313,
+      "n": 200,
+      "p50_ms": 22.861,
+      "p95_ms": 23.683,
+      "p99_ms": 24.23,
+      "mean_ms": 22.942,
+      "throughput_per_sec": 43.6
+    },
+    "cache_miss_heavy_jsonld": {
+      "bytes": 9632,
+      "n": 200,
+      "p50_ms": 4.709,
+      "p95_ms": 4.939,
+      "p99_ms": 5.179,
+      "mean_ms": 4.775,
+      "throughput_per_sec": 209.4
+    },
+    "cache_miss_many_scripts": {
+      "bytes": 9863,
+      "n": 200,
+      "p50_ms": 4.777,
+      "p95_ms": 5.027,
+      "p99_ms": 5.27,
+      "mean_ms": 4.811,
+      "throughput_per_sec": 207.9
+    },
+    "cache_miss_large_64kb": {
+      "bytes": 72538,
+      "n": 200,
+      "p50_ms": 34.14,
+      "p95_ms": 35.179,
+      "p99_ms": 36.693,
+      "mean_ms": 34.338,
+      "throughput_per_sec": 29.1
+    },
+    "cache_miss_large_256kb": {
+      "bytes": 287517,
+      "n": 200,
+      "p50_ms": 33.895,
+      "p95_ms": 34.791,
+      "p99_ms": 36.105,
+      "mean_ms": 34.031,
+      "throughput_per_sec": 29.4
+    },
+    "cache_hit_basic": {
+      "bytes": 1188,
+      "n": 500,
+      "p50_ms": 0.0633,
+      "p95_ms": 0.077,
+      "p99_ms": 0.0903,
+      "mean_ms": 0.0661,
+      "throughput_per_sec": 15127.1
+    },
+    "cache_hit_large_256kb": {
+      "bytes": 287517,
+      "n": 500,
+      "p50_ms": 0.0633,
+      "p95_ms": 0.0764,
+      "p99_ms": 0.0885,
+      "mean_ms": 0.0656,
+      "throughput_per_sec": 15238.5
+    }
+  },
+  "memory": {
+    "scenario": "100x large_256kb sequential requests",
+    "current_bytes": 7482492,
+    "peak_bytes": 8709578,
+    "peak_mb": 8.31
+  },
+  "environment_note": "Same stubbed-network methodology as baseline.json \u2014 see that file's environment_note for the full rationale."
+}

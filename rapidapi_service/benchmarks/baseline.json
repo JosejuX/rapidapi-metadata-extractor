@@ -1,0 +1,112 @@
+{
+  "label": "pre-refactor main.py (v3.0.0 + uncommitted P0/P1 patches)",
+  "generated_at": "2026-08-10T12:01:33Z",
+  "scenarios": {
+    "cache_miss_basic": {
+      "bytes": 1188,
+      "n": 200,
+      "p50_ms": 0.948,
+      "p95_ms": 1.069,
+      "p99_ms": 1.225,
+      "mean_ms": 0.967,
+      "throughput_per_sec": 1033.8
+    },
+    "cache_miss_unicode": {
+      "bytes": 1007,
+      "n": 200,
+      "p50_ms": 0.771,
+      "p95_ms": 0.857,
+      "p99_ms": 0.95,
+      "mean_ms": 0.785,
+      "throughput_per_sec": 1273.7
+    },
+    "cache_miss_malformed": {
+      "bytes": 293,
+      "n": 200,
+      "p50_ms": 0.357,
+      "p95_ms": 0.443,
+      "p99_ms": 0.58,
+      "mean_ms": 0.371,
+      "throughput_per_sec": 2698.8
+    },
+    "cache_miss_spa": {
+      "bytes": 235,
+      "n": 200,
+      "p50_ms": 0.337,
+      "p95_ms": 0.433,
+      "p99_ms": 0.494,
+      "mean_ms": 0.35,
+      "throughput_per_sec": 2857.4
+    },
+    "cache_miss_many_links": {
+      "bytes": 33313,
+      "n": 200,
+      "p50_ms": 23.055,
+      "p95_ms": 24.393,
+      "p99_ms": 25.609,
+      "mean_ms": 23.558,
+      "throughput_per_sec": 42.4
+    },
+    "cache_miss_heavy_jsonld": {
+      "bytes": 9632,
+      "n": 200,
+      "p50_ms": 4.726,
+      "p95_ms": 5.19,
+      "p99_ms": 6.051,
+      "mean_ms": 4.87,
+      "throughput_per_sec": 205.4
+    },
+    "cache_miss_many_scripts": {
+      "bytes": 9863,
+      "n": 200,
+      "p50_ms": 4.764,
+      "p95_ms": 4.901,
+      "p99_ms": 5.408,
+      "mean_ms": 4.789,
+      "throughput_per_sec": 208.8
+    },
+    "cache_miss_large_64kb": {
+      "bytes": 72538,
+      "n": 200,
+      "p50_ms": 34.1,
+      "p95_ms": 35.164,
+      "p99_ms": 36.494,
+      "mean_ms": 34.332,
+      "throughput_per_sec": 29.1
+    },
+    "cache_miss_large_256kb": {
+      "bytes": 287517,
+      "n": 200,
+      "p50_ms": 34.24,
+      "p95_ms": 36.007,
+      "p99_ms": 38.316,
+      "mean_ms": 34.559,
+      "throughput_per_sec": 28.9
+    },
+    "cache_hit_basic": {
+      "bytes": 1188,
+      "n": 500,
+      "p50_ms": 0.0644,
+      "p95_ms": 0.0782,
+      "p99_ms": 0.0898,
+      "mean_ms": 0.0659,
+      "throughput_per_sec": 15171.0
+    },
+    "cache_hit_large_256kb": {
+      "bytes": 287517,
+      "n": 500,
+      "p50_ms": 0.0647,
+      "p95_ms": 0.0737,
+      "p99_ms": 0.082,
+      "mean_ms": 0.0659,
+      "throughput_per_sec": 15171.7
+    }
+  },
+  "memory": {
+    "scenario": "100x large_256kb sequential requests",
+    "current_bytes": 7481950,
+    "peak_bytes": 9246116,
+    "peak_mb": 8.82
+  },
+  "environment_note": "Network I/O and DNS/SSRF resolution were stubbed for this benchmark (sandbox has no direct DNS egress and the SSRF shield correctly blocks loopback targets by design). Numbers reflect internal server-side processing only: cache lookup, HTML parse, single-pass extraction, serialization. Live upstream fetch latency (DNS/connect/TLS/TTFB/download) must be measured separately in a real deployment."
+}

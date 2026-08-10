@@ -1,0 +1,32 @@
+# Docker ignore file — keeps image lean by excluding non-essential files
+# §70: .dockerignore for reproducible, minimal Docker builds
+
+# Git
+.git
+.gitignore
+.github
+
+# Dev/test files
+rapidapi_service/test_api.py
+rapidapi_service/load_test.py
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.egg-info
+**/.pytest_cache
+**/.ruff_cache
+
+# Documentation & marketing
+*.md
+*.yaml
+assets/
+
+# Python virtual environments
+.venv
+venv
+env
+
+# OS
+.DS_Store
+Thumbs.db

@@ -8,7 +8,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
-  [![Version](https://img.shields.io/badge/Version-3.0.0-blueviolet.svg)]()
+  [![Version](https://img.shields.io/badge/Version-4.0.0-blueviolet.svg)]()
   [![Rust ORJSON](https://img.shields.io/badge/JSON%20Engine-Rust%20ORJSON-orange.svg)]()
   [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/)
   [![Response Time](https://img.shields.io/badge/Response%20Time-%3C200ms-brightgreen.svg)]()
@@ -42,6 +42,15 @@
 | 🚀 **15-Min In-Memory Cache** | Cached responses served in **< 0.01 ms** server-side processing time. |
 | ⚡ **4x Workers + Auto-Reconnect Redis** | Gunicorn multi-process cluster. Distributed rate limiting via Redis with startup ping validation, automatic reconnect every 30s, and immediate `degraded_fallback` status propagation to `/health/details`. |
 | 🔒 **Split `/health` + `/health/details`** | Minimal public liveness probe (`/health`). Full operational details (Redis mode, status, engine) secured via `HEALTH_DETAILS_SECRET` header on `/health/details`. |
+| 🧯 **Per-Host Circuit Breaker** | Trips after repeated timeouts/connection failures/5xx to one host, fails fast during the cooldown window instead of burning the full connect+read timeout budget on every request, and probes recovery automatically (never trips on ordinary 4xx). |
+| 🧩 **Request Single-Flight + DNS Coalescing** | Concurrent requests for the same URL (or the same hostname's DNS lookup) share one in-flight fetch instead of hammering the origin N times. |
+| 🩹 **Negative-Result Cache** | Short-TTL caching of recent upstream failures (DNS/timeout/5xx) so a broken target fails fast instead of repeating the same slow failure for every request during an outage. |
+| 🧱 **Adaptive Byte-Limit Hardening** | Streaming byte cap is enforced on the *decoded* chunk, closing a decompression-bomb gap where a small gzip/br payload could otherwise expand to megabytes in a single read. Response headers are also count- and size-bounded. |
+| 🏷️ **Structured Error Codes** | Every error response carries a machine-readable `error.code` / `error.retryable` object (e.g. `SSRF_BLOCKED`, `UPSTREAM_TIMEOUT`, `CIRCUIT_OPEN`) alongside the existing `detail` string — fully additive, v1 contract unchanged. |
+| 📈 **Prometheus Metrics + Structured JSON Logs** | `/metrics` exposes request/cache/SSRF/circuit-breaker/rate-limit counters and latency histograms. Every log line is a JSON object with `request_id` for end-to-end tracing; known-sensitive fields are redacted automatically. |
+| 🧠 **Confidence-Scored Tech Detection** | `/api/v1/tech-stack` now also returns `technology_details`: per-technology confidence score, matched evidence, and category (cms/ecommerce/framework/analytics/payment/hosting/…), alongside the original flat list. |
+| 📦 **Deeper Product & JSON-LD Parsing** | Traverses `@graph` and top-level JSON-LD arrays (not just top-level objects), extracting SKU, MPN, GTIN/ISBN, seller, condition, price range, and images. |
+| 🔎 **Unicode-Aware SEO & Keywords** | Keyword extraction now matches non-ASCII scripts correctly (accented/Cyrillic/etc. content), and the SEO audit adds `lang` attribute, viewport, noindex, multi-H1, Twitter Card, and structured-data checks. |
 
 ---
 
@@ -54,6 +63,8 @@
 > - **Split Health Endpoints**: `/health` returns a minimal public liveness payload. `/health/details` returns full operational status (Redis mode, trust_proxy, engine) and requires the `X-Health-Secret` header when `HEALTH_DETAILS_SECRET` env var is set.
 > - **Horizontal Scaling**: Single-instance → in-memory TTLCache (60 req/min/IP). Multi-worker → distributed Redis. Enterprise scale → RapidAPI Gateway or Nginx.
 > - **Zero-Trust Self-Hosting**: Full Dockerfile, Gunicorn config, and test suite included for self-hosted production deployments.
+> - **Modular Codebase**: The service is organized as an `app/` package (`security/`, `fetcher/`, `cache/`, `ratelimit/`, `extraction/`, `observability/`, `api/`) rather than a single file — `main.py` is a thin backward-compatibility shim so `uvicorn main:app` / `gunicorn main:app` keep working unchanged.
+> - **Observability**: `GET /metrics` exposes Prometheus counters and latency histograms (requests, cache hit/miss, SSRF blocks, circuit-breaker trips, rate limiting, bytes downloaded, etc.). All application logs are single-line JSON with a `request_id` shared with the `X-Request-ID` response header, for correlating a request across logs and metrics.
 
 ---
 
@@ -170,6 +181,8 @@ curl --request GET \
 }
 ```
 
+> Since v4.0.0, `metadata` also includes `viewport`, `twitter_card`, and `h1_count`; `/api/v1/tech-stack` additionally returns `technology_details` (confidence score, matched evidence, category per technology); and `product_data` (when present) includes `sku`, `mpn`, `gtin`/`isbn`, `seller`, `condition`, and price-range fields. All additions are purely additive — no existing field was removed or changed type.
+
 ---
 
 ## 📖 API Endpoint Documentation
@@ -186,6 +199,9 @@ curl --request GET \
 | `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 8-point audit score with warnings list. |
 | `/api/v1/links` | `GET` | **Link classifier** — internal vs external hyperlinks (up to 100 per page). |
 | `/health` | `GET` | **Health check** — status, version, protection mode. |
+| `/health/details` | `GET` | **Operational health** — Redis mode/status, trust-proxy config. Requires `X-Health-Secret` if `HEALTH_DETAILS_SECRET` is set. |
+| `/health/ready` | `GET` | **Readiness probe** — 200 once the HTTP client is initialized, 503 during startup. |
+| `/metrics` | `GET` | **Prometheus scrape target** — request/cache/SSRF/circuit-breaker/rate-limit counters and latency histograms. Not authenticated (protect at the network/proxy level, standard Prometheus practice). Hidden from the public OpenAPI schema. |
 
 ### Query Parameters
 

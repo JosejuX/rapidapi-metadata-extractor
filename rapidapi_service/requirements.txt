@@ -9,4 +9,5 @@ orjson==3.10.18
 httptools==0.6.4
 gunicorn==23.0.0
 redis==5.2.1
+prometheus-client==0.26.0
 uvloop==0.21.0; sys_platform != 'win32'
