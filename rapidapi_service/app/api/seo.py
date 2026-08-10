@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
 from app.extraction.pipeline import fetch_and_extract_raw
+from app.extraction.profiles import PROFILE_SEO
 from app.models.responses import SeoAuditResponse
 from app.ratelimit.limiter import check_ip_rate_limit
 from app.security.headers import verify_rapidapi_secret
@@ -26,7 +27,7 @@ async def extract_seo_audit(
     Dedicated endpoint for automated SEO diagnostic audit:
     Evaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage, and HTTPS security.
     """
-    data = await fetch_and_extract_raw(url, user_agent)
+    data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_SEO)
     return SeoAuditResponse(
         url=data["url"],
         final_url=data["final_url"],

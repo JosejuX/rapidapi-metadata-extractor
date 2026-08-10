@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
 from app.extraction.pipeline import fetch_and_extract_raw
+from app.extraction.profiles import PROFILE_LINKS
 from app.models.responses import LinksResponse
 from app.ratelimit.limiter import check_ip_rate_limit
 from app.security.headers import verify_rapidapi_secret
@@ -26,7 +27,7 @@ async def extract_links_endpoint(
     Dedicated endpoint for hyperlink extraction and domain classification:
     Categorizes all page links into internal links (same domain) and external links (third-party websites).
     """
-    data = await fetch_and_extract_raw(url, user_agent)
+    data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_LINKS)
     return LinksResponse(
         url=data["url"],
         final_url=data["final_url"],

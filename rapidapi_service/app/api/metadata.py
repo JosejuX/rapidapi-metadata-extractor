@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
 from app.extraction.pipeline import fetch_and_extract_raw
+from app.extraction.profiles import PROFILE_LINK_PREVIEW
 from app.models.responses import LinkPreviewResponse
 from app.ratelimit.limiter import check_ip_rate_limit
 from app.security.headers import verify_rapidapi_secret
@@ -26,7 +27,7 @@ async def extract_link_preview(
     Lightweight endpoint optimized for link preview cards (Social Cards / Unfurl):
     Returns title, description, og_image, favicon, favicon_high_res, site_name, and language.
     """
-    data = await fetch_and_extract_raw(url, user_agent, head_only=True)
+    data = await fetch_and_extract_raw(url, user_agent, head_only=True, profile=PROFILE_LINK_PREVIEW)
     meta = data["metadata"]
     return LinkPreviewResponse(
         url=data["url"],

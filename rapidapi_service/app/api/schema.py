@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
 from app.extraction.pipeline import fetch_and_extract_raw
+from app.extraction.profiles import PROFILE_SCHEMA
 from app.models.responses import SchemaResponse
 from app.ratelimit.limiter import check_ip_rate_limit
 from app.security.headers import verify_rapidapi_secret
@@ -26,7 +27,7 @@ async def extract_schema(
     Dedicated endpoint for Schema.org & JSON-LD structured data extraction:
     Returns parsed product pricing, e-commerce reviews, article schemas, event details, and organization metadata.
     """
-    data = await fetch_and_extract_raw(url, user_agent)
+    data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_SCHEMA)
     schemas = data["json_ld_schemas"]
     return SchemaResponse(
         url=data["url"],

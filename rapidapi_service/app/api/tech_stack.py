@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
 from app.extraction.pipeline import fetch_and_extract_raw
+from app.extraction.profiles import PROFILE_TECH
 from app.models.responses import TechStackResponse
 from app.ratelimit.limiter import check_ip_rate_limit
 from app.security.headers import verify_rapidapi_secret
@@ -26,7 +27,7 @@ async def extract_tech_stack(
     Dedicated endpoint for technology intelligence & CMS auditing:
     Detects 100+ frameworks and CMS signatures with structural context-aware matching.
     """
-    data = await fetch_and_extract_raw(url, user_agent)
+    data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_TECH)
     return TechStackResponse(
         url=data["url"],
         final_url=data["final_url"],

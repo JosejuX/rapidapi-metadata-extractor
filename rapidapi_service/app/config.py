@@ -82,6 +82,14 @@ USER_AGENTS = [
 CACHE_MAXSIZE = 5000
 CACHE_TTL_SECONDS = 900          # 15 minutes
 
+# Raw-fetch cache for lazy extraction (Plan §12) — bridges a short window so
+# a burst of different-profile requests for the same URL (e.g. /tech-stack
+# then /security moments apart) top up one cache entry without a second
+# upstream fetch. Deliberately much smaller/shorter-lived than CACHE_*
+# above: it only needs to survive a short window, not the full response TTL.
+RAW_PAGE_CACHE_MAXSIZE = 1000
+RAW_PAGE_CACHE_TTL_SECONDS = 60
+
 DNS_CACHE_MAXSIZE = 2000
 DNS_CACHE_TTL_SECONDS = 300      # 5 minutes
 

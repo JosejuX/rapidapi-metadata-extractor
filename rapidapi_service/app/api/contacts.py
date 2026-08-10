@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.common import COMMON_RESPONSES
 from app.extraction.pipeline import fetch_and_extract_raw
+from app.extraction.profiles import PROFILE_CONTACTS
 from app.models.responses import ContactsResponse
 from app.ratelimit.limiter import check_ip_rate_limit
 from app.security.headers import verify_rapidapi_secret
@@ -26,7 +27,7 @@ async def extract_contacts(
     Dedicated endpoint for lead enrichment & B2B prospecting:
     Returns public emails, telephone numbers, and official social media profile URLs.
     """
-    data = await fetch_and_extract_raw(url, user_agent)
+    data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_CONTACTS)
     contacts = data["contacts"]
     return ContactsResponse(
         url=data["url"],

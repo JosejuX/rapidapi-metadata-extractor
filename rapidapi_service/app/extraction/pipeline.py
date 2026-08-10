@@ -4,12 +4,32 @@ run every extractor against the same tree, single-pass where the original
 code did. This is the direct replacement for the old fetch_and_extract_raw
 monolith — same cache semantics, same field names, same ordering constraints
 (markdown extraction mutates the tree via strip_tags and must run LAST).
+
+Plan §12 lazy extraction: a `profile` (see extraction/profiles.py) says which
+extractor groups a caller actually needs. `/api/v1/extract` doesn't pass one,
+so it defaults to FULL_PROFILE and goes through the exact same code path as
+before this feature existed (_fetch_and_extract_uncached, untouched) — zero
+behavior/performance change for the full-payload endpoint. Specialized
+endpoints (`/contacts`, `/tech-stack`, `/security`, ...) pass a narrow
+profile and are routed to _fetch_and_extract_partial instead, which only
+runs the extractors that profile's groups need (e.g. /security never
+constructs an HTMLParser tree at all).
+
+Cache entries are `{"data": {...fields...}, "computed": frozenset(groups)}`.
+A lookup is a hit only if the requested profile is a subset of what's already
+computed for that cache_key. Narrow profiles accumulate into the same entry
+(so /tech-stack then /security for the same URL reuses the raw fetch and
+merges into one entry) but a FULL request always re-runs the full pipeline
+and overwrites whatever was cached — it never tries to top up from a partial
+entry, to keep the well-trodden FULL/`/extract` path completely unchanged.
 """
 import time
 from typing import Any, Dict, Optional
 
+from cachetools import TTLCache
 from selectolax.parser import HTMLParser
 
+from app import config
 from app.cache.keys import build_cache_key
 from app.cache.l1 import cache
 from app.cache.negative import get_cached_negative, maybe_cache_negative
@@ -23,21 +43,45 @@ from app.extraction.links import extract_links_and_socials
 from app.extraction.markdown import extract_summary_and_keywords, html_to_markdown_clean
 from app.extraction.metadata import extract_metadata_fields
 from app.extraction.product import extract_product_data
+from app.extraction.profiles import (
+    FULL_PROFILE,
+    expand_profile,
+    needs_a_nodes,
+    needs_clean_text,
+    needs_tree,
+)
 from app.extraction.security import extract_security_headers
 from app.extraction.seo import run_seo_audit
 from app.extraction.tech import detect_technologies_detailed, names_in_signature_order
 from app.fetcher.client import fetch_raw_page, sanitize_user_agent
 from app.observability import metrics
 
+# Short-lived, small cache for raw fetch results (Plan §12.2: specialized
+# endpoints "must reuse the same fetcher and parser" as each other) — lets a
+# burst of different-profile requests for the same URL (e.g. /tech-stack then
+# /security called moments apart) top up the same cache entry without a
+# second upstream fetch. Deliberately much smaller/shorter-lived than the
+# main L1 cache: it only needs to bridge a short window, not the full
+# CACHE_TTL_SECONDS, so it doesn't meaningfully add to steady-state RAM.
+_raw_page_cache: TTLCache = TTLCache(maxsize=config.RAW_PAGE_CACHE_MAXSIZE, ttl=config.RAW_PAGE_CACHE_TTL_SECONDS)
 
-async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None, head_only: bool = False) -> Dict[str, Any]:
+
+async def fetch_and_extract_raw(
+    url: str,
+    user_agent: Optional[str] = None,
+    head_only: bool = False,
+    profile: Optional[frozenset] = None,
+) -> Dict[str, Any]:
+    profile = FULL_PROFILE if profile is None else expand_profile(profile)
+
     url = normalize_and_validate_url(url)
     clean_ua = sanitize_user_agent(user_agent)
 
     cache_key = build_cache_key(url, clean_ua, head_only, user_agent)
 
-    if cache_key in cache:
-        cached_data = cache[cache_key].copy()
+    entry = cache.get(cache_key)
+    if entry is not None and profile <= entry["computed"]:
+        cached_data = entry["data"].copy()
         cached_data["execution_time_ms"] = 0.01
         logger.info("Cache hit: %s", cache_key)
         metrics.CACHE_HITS_TOTAL.inc()
@@ -54,10 +98,13 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None, head
 
     metrics.CACHE_MISSES_TOTAL.inc()
 
-    # §6.7/§52 single-flight: N concurrent requests for the same cache_key
-    # while a fetch+extract is already in progress share that one result
-    # instead of triggering N upstream fetches.
-    return await single_flight(cache_key, lambda: _fetch_and_extract_uncached(url, user_agent, head_only, cache_key))
+    if profile == FULL_PROFILE:
+        # §6.7/§52 single-flight: N concurrent requests for the same
+        # cache_key while a fetch+extract is already in progress share that
+        # one result instead of triggering N upstream fetches.
+        return await single_flight(cache_key, lambda: _fetch_and_extract_uncached(url, user_agent, head_only, cache_key))
+
+    return await _fetch_and_extract_partial(url, user_agent, head_only, cache_key, profile, entry)
 
 
 async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_only: bool, cache_key: str) -> Dict[str, Any]:
@@ -178,5 +225,151 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         "bytes_downloaded": bytes_downloaded,
     }
 
-    cache[cache_key] = response_data
+    cache[cache_key] = {"data": response_data, "computed": FULL_PROFILE}
     return response_data
+
+
+async def _fetch_and_extract_partial(
+    url: str,
+    user_agent: Optional[str],
+    head_only: bool,
+    cache_key: str,
+    profile: frozenset,
+    entry: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Lazy path for specialized endpoints (Plan §12): fetch once (reusing a
+    recent raw fetch if another profile for this same URL already triggered
+    one), then run only the extractor groups `profile` needs."""
+    start_time = time.time()
+
+    raw = _raw_page_cache.get(cache_key)
+    if raw is None:
+        try:
+            raw = await single_flight(f"rawpage:{cache_key}", lambda: fetch_raw_page(url, user_agent, head_only))
+        except AppError as e:
+            maybe_cache_negative(cache_key, e)
+            raise
+        _raw_page_cache[cache_key] = raw
+
+    new_fields = _compute_groups(raw, profile)
+
+    base_fields = {
+        "url": url,
+        "final_url": raw["final_url"],
+        "status_code": raw["status_code"],
+        "content_truncated": raw["content_truncated"],
+        "bytes_downloaded": raw["bytes_downloaded"],
+    }
+
+    if entry is not None:
+        merged_data = {**entry["data"], **base_fields, **new_fields}
+        merged_profile = entry["computed"] | profile
+    else:
+        merged_data = {**base_fields, **new_fields}
+        merged_profile = profile
+
+    merged_data["execution_time_ms"] = round((time.time() - start_time) * 1000, 2)
+    cache[cache_key] = {"data": merged_data, "computed": merged_profile}
+    return merged_data
+
+
+def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
+    """Runs only the extractors `profile`'s groups need, against `raw`
+    (the fetch_raw_page() output). Returns just the newly-computed fields —
+    the caller merges them with any previously-cached fields for this URL."""
+    html_content = raw["html_content"]
+    raw_bytes = raw["raw_bytes"]
+    final_url = raw["final_url"]
+    resp_headers = raw["resp_headers"]
+
+    fields: Dict[str, Any] = {}
+
+    tree = HTMLParser(html_content) if needs_tree(profile) else None
+    a_nodes = tree.css('a[href]') if (tree is not None and needs_a_nodes(profile)) else []
+
+    link_data = None
+    if "links_and_socials" in profile or "contacts_emails" in profile:
+        link_data = extract_links_and_socials(a_nodes, final_url)
+        if "links_and_socials" in profile:
+            fields["social_links"] = link_data["social_links"]
+            fields["internal_links"] = link_data["internal_links"]
+            fields["external_links"] = link_data["external_links"]
+            fields["total_internal_count"] = len(link_data["internal_links"])
+            fields["total_external_count"] = len(link_data["external_links"])
+
+    clean_text = ""
+    if needs_clean_text(profile):
+        clean_tree = HTMLParser(html_content)
+        clean_tree.strip_tags(["script", "style", "code", "noscript", "svg"])
+        body_txt = clean_tree.body.text(separator=' ') if clean_tree.body else clean_tree.text(separator=' ')
+        clean_text = body_txt if body_txt else ""
+
+    if "metadata" in profile:
+        metadata = extract_metadata_fields(tree, final_url, resp_headers, links_count=len(a_nodes))
+        metadata["content_length_bytes"] = len(raw_bytes)
+        fields["metadata"] = metadata
+
+    if "contacts_emails" in profile:
+        mailto_emails = link_data["mailto_emails"] if link_data else []
+        tel_phones = link_data["tel_phones"] if link_data else []
+        emails = extract_emails(clean_text, mailto_emails)
+        fields["contacts"] = {"emails": emails[:10], "phones": tel_phones[:5]}
+
+    if "tech" in profile:
+        technology_details = detect_technologies_detailed(html_content)
+        fields["technology_details"] = technology_details
+        fields["detected_technologies"] = names_in_signature_order(technology_details)
+
+    json_ld_schemas = None
+    if "jsonld" in profile:
+        json_ld_schemas = extract_json_ld(tree)
+        fields["json_ld_schemas"] = json_ld_schemas
+        fields["rss_feeds"] = extract_rss_feeds(tree, final_url)
+
+    if "product" in profile:
+        fields["product_data"] = extract_product_data(json_ld_schemas or [])
+
+    if "security" in profile:
+        sec_headers, security_score = extract_security_headers(resp_headers)
+        fields["security_headers"] = sec_headers
+        fields["security_score_percentage"] = security_score
+
+    if "seo" in profile:
+        meta_for_seo = fields["metadata"]  # "seo" always pulls in "metadata" via _GROUP_DEPS
+        passed_seo, warnings_seo, seo_score = run_seo_audit(
+            title=meta_for_seo["title"],
+            description=meta_for_seo["description"],
+            canonical_url=meta_for_seo["canonical_url"],
+            h1_tags=meta_for_seo["h1_tags"],
+            og_image=meta_for_seo["og_image"],
+            favicon=meta_for_seo["favicon"],
+            images_count=meta_for_seo["images_count"],
+            images_missing_alt_count=meta_for_seo["images_missing_alt_count"],
+            final_url=final_url,
+            language=meta_for_seo["language"],
+            viewport=meta_for_seo["viewport"],
+            robots_directive=meta_for_seo["robots"],
+            h1_count=meta_for_seo["h1_count"],
+            twitter_card=meta_for_seo["twitter_card"],
+            has_structured_data=bool(json_ld_schemas),
+        )
+        fields["seo_score_percentage"] = seo_score
+        fields["seo_passed_checks"] = passed_seo
+        fields["seo_warnings"] = warnings_seo
+
+    if "summary_keywords" in profile:
+        meta_for_summary = fields["metadata"]  # always pulled in via _GROUP_DEPS
+        summary_snippet, top_keywords = extract_summary_and_keywords(clean_text, meta_for_summary["description"])
+        meta_for_summary["summary_snippet"] = summary_snippet
+        meta_for_summary["top_keywords"] = top_keywords
+
+    if "markdown" in profile:
+        # Own fresh tree — markdown mutates it via strip_tags(), so it must
+        # never be the shared `tree` other groups above already read from.
+        md_tree = HTMLParser(html_content)
+        markdown_content, word_count, reading_time = html_to_markdown_clean(md_tree, final_url)
+        fields["markdown_content"] = markdown_content
+        fields["word_count"] = word_count
+        fields["reading_time_minutes"] = reading_time
+
+    return fields

@@ -51,6 +51,7 @@
 | 🧠 **Confidence-Scored Tech Detection** | `/api/v1/tech-stack` now also returns `technology_details`: per-technology confidence score, matched evidence, and category (cms/ecommerce/framework/analytics/payment/hosting/…), alongside the original flat list. |
 | 📦 **Deeper Product & JSON-LD Parsing** | Traverses `@graph` and top-level JSON-LD arrays (not just top-level objects), extracting SKU, MPN, GTIN/ISBN, seller, condition, price range, and images. |
 | 🔎 **Unicode-Aware SEO & Keywords** | Keyword extraction now matches non-ASCII scripts correctly (accented/Cyrillic/etc. content), and the SEO audit adds `lang` attribute, viewport, noindex, multi-H1, Twitter Card, and structured-data checks. |
+| ⚡ **Lazy Extraction Per Endpoint** | Specialized endpoints only run the extractors they actually need instead of the full pipeline — `/security` never even parses the HTML tree, `/tech-stack` skips links/metadata/markdown/SEO entirely. `/api/v1/extract` is unaffected (still the full payload). Results for different endpoints hitting the same URL share one upstream fetch and accumulate into the same cache entry. |
 
 ---
 
@@ -64,6 +65,7 @@
 > - **Horizontal Scaling**: Single-instance → in-memory TTLCache (60 req/min/IP). Multi-worker → distributed Redis. Enterprise scale → RapidAPI Gateway or Nginx.
 > - **Zero-Trust Self-Hosting**: Full Dockerfile, Gunicorn config, and test suite included for self-hosted production deployments.
 > - **Modular Codebase**: The service is organized as an `app/` package (`security/`, `fetcher/`, `cache/`, `ratelimit/`, `extraction/`, `observability/`, `api/`) rather than a single file — `main.py` is a thin backward-compatibility shim so `uvicorn main:app` / `gunicorn main:app` keep working unchanged.
+> - **Lazy Extraction**: `/api/v1/extract` always runs the full pipeline (unchanged). Specialized endpoints instead run only their required extractor groups — e.g. `/api/v1/security` skips HTML parsing entirely (headers-only), `/api/v1/tech-stack` skips metadata/links/markdown/SEO. Calling two different specialized endpoints for the same URL shares one upstream fetch and merges into one cache entry.
 > - **Observability**: `GET /metrics` exposes Prometheus counters and latency histograms (requests, cache hit/miss, SSRF blocks, circuit-breaker trips, rate limiting, bytes downloaded, etc.). All application logs are single-line JSON with a `request_id` shared with the `X-Request-ID` response header, for correlating a request across logs and metrics.
 
 ---
