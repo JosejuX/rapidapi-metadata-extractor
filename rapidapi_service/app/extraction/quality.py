@@ -3,11 +3,11 @@ Extraction quality assessment — applies the same "confidence, not
 certainty" philosophy already used for tech-stack detection (Plan §20) to
 structured product data, plus an overall response-level quality summary.
 
-Two independent pieces:
+Two pieces:
 
 1. Multi-source product-field resolution + conflict detection. When the
    same field (price/currency/availability/brand) is found in more than one
-   independent STRUCTURED source (JSON-LD, OpenGraph's product extension,
+   distinct STRUCTURED encoding (JSON-LD, OpenGraph's product extension,
    schema.org Microdata — deliberately not freeform DOM text-scanning,
    which would be false-positive-prone) and they disagree, that's a real,
    actionable signal worth surfacing rather than silently picking one value.
@@ -18,11 +18,20 @@ Two independent pieces:
    structured source, not a weaker fallback), OpenGraph's product extension
    is the least formally specified of the three.
 
+   IMPORTANT CAVEAT (not just a docs note — reflected in how `confidence` is
+   named/used everywhere it's surfaced): "agreement" here means these three
+   encodings say the same thing, NOT that they're independently-verified
+   facts. A single CMS/e-commerce platform frequently generates JSON-LD, OG
+   tags, and Microdata from the same underlying product record — so three
+   encodings agreeing is often "one source of truth, expressed three ways,"
+   not three separate confirmations. `confidence: 0.98` means "internally
+   consistent," never "98% likely to be factually correct."
+
 2. `quality.score`: same explicitly-a-heuristic framing as
    seo_score_percentage/security_score_percentage (Plan §23/§24) — a
    composite signal, not a certified accuracy measurement. Never claims
-   "94% of this data is correct"; claims "several independent signals
-   suggest this response is trustworthy to this degree".
+   "94% of this data is correct"; claims "the evidence available to this
+   extraction pass is internally consistent to this degree."
 """
 from typing import Any, Dict, List, Optional
 

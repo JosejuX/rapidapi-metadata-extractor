@@ -34,7 +34,7 @@
 | 📲 **Social Profile Finder** | Auto-detects Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, TikTok. |
 | 🛠️ **100+ Tech Stack Detector** | WordPress, Shopify, WooCommerce, Webflow, React, Next.js, Vue, Angular, Svelte, TailwindCSS, Stripe, GA4, and 100+ more. |
 | 📦 **Schema.org JSON-LD + Product Parser** | Parses all structured data schemas AND auto-extracts Product price, currency, availability, brand, rating and review count. |
-| 🎯 **Multi-Source Data Quality & Conflict Detection** | Product price/currency/availability/brand are cross-checked across three independent structured sources — JSON-LD, OpenGraph's product extension, and schema.org Microdata. `product_field_confidence` reports a per-field confidence score (more independent sources agreeing = higher confidence, same philosophy as tech-stack detection) and which source won. When sources genuinely disagree, a `SOURCE_CONFLICT` warning names the field, every value found, and which one was chosen and why. A top-level `quality` object (`score`, `rendered: false`, `sources_used`, `warnings`) summarizes response trustworthiness for programmatic consumers — especially useful for AI agents deciding whether to trust a result. |
+| 🎯 **Multi-Source Data Quality & Conflict Detection** | Product price/currency/availability/brand are cross-checked across three distinct structured encodings — JSON-LD, OpenGraph's product extension, and schema.org Microdata. `product_field_confidence` reports a per-field confidence score (more of these encodings agreeing = higher confidence, same philosophy as tech-stack detection) and which source won. When they genuinely disagree, a `SOURCE_CONFLICT` warning names the field, every value found, and which one was chosen and why. A top-level `quality` object (`score`, `rendered: false`, `sources_used`, `warnings`) summarizes response trustworthiness for programmatic consumers. **Caveat**: these three encodings often come from the same underlying product record on a given site, so agreement means "internally consistent," not "independently verified" — see Honest Limitations below. |
 | 📊 **On-Page SEO Health Audit Score** | 13-point automated on-page technical SEO diagnostic (0–100%) with actionable warnings list, plus a structured `seo_checks` breakdown (`check` id, `passed`, `severity`, `evidence`) for programmatic use. |
 | 🔗 **Internal vs External Link Classifier** | Categorizes up to 100 hyperlinks per page. |
 | 🤖 **AI & LLM Clean Markdown Reader** | Converts article text to clean Markdown for ChatGPT, Claude, RAG, and AI agents. Includes word count and reading time. |
@@ -83,11 +83,19 @@
 This API fetches raw HTTP responses and parses HTML — it is **not a browser**. That's a deliberate trade-off for speed (no browser startup, no JS execution wait, minimal memory per request), and it comes with real ceilings that no amount of additional regex or extractors can fully remove:
 
 - **No JavaScript execution.** Content that only exists after client-side rendering (many SPAs, some login-gated pages, content behind "load more" interactions) will be missing or incomplete. A static/SSR page (most blogs, e-commerce product pages, marketing sites, GitHub, Wikipedia) works great; a client-rendered single-page app whose initial HTML is just `<div id="root"></div>` will return mostly empty results — the API cannot execute the JS that would fill it in.
+- **Detecting a JS framework doesn't mean the JS problem is solved.** The adaptive byte limit (see below) expanding to 256 KB when React/Next.js/Vue/etc. signatures are spotted improves *coverage* of the initial HTML — it does not run a browser, execute hydration, or wait for client-side API calls. `Next.js -> more bytes -> a bigger parse` is not `Next.js -> Chromium -> JS execution -> hydration -> final DOM`. Treat it as "we tried harder to read what the server already sent," not "we solved SPAs."
 - **Bot-protection / CAPTCHAs are detected, not bypassed.** `bot_protection_detected` (see above) tells you *that* Cloudflare/Akamai/PerimeterX/a CAPTCHA blocked the request — it does not solve the challenge. There is no workaround for this short of running a real browser.
-- **Extraction is heuristic, not ground truth.** Technology detection, contact info, social links, and product data are pattern/signature-based. Treat `"Shopify"` in `detected_technologies` or an email in `contacts.emails` as a strong signal, not a certainty — false positives and false negatives are possible, especially on unusual page structures.
+- **Extraction is heuristic evidence, not ground truth — including when it looks confident.** Technology detection, contact info, social links, and product data are pattern/signature-based. A tech signature match (e.g. one CDN hostname in an image URL) proves the string was present somewhere the fetcher looked, not that the technology is meaningfully *in use* — it could be dead code, a shared/third-party asset, a transitive dependency, or an accidental substring. `technology_details.confidence` reflects how many independent signals agreed, not a probability that the detection is correct. See the live GitHub example above, where `"Contentful"` is detected at `0.75` confidence from a single CDN hostname in an `og:image` URL — plausible evidence, not proof GitHub runs on Contentful.
+- **A `quality.score` near 1.0 means the *evidence available to this API* was internally consistent — not that the data is verified accurate.** When JSON-LD, OpenGraph, and Microdata all report the same price, that's three *encodings*, not necessarily three *independent* sources — a site frequently generates all three from the same underlying product record, so agreement can mean "one data source, expressed three ways" rather than three independently-verified facts. Read `confidence: 0.98` as "nothing on the page contradicts this," not "there's a 98% chance this is correct."
+- **The adaptive 64/256 KB byte limit is a real trade-off, not just a performance knob.** It's what keeps typical requests fast, but it means content positioned late in a large page — JSON-LD placed near the closing `</body>`, a product block far down a long CMS-generated page — can be missed purely because of *where* it sits in the HTML, independent of how "complex" the page seems. Larger/more script-heavy pages are paradoxically more likely to have relevant data pushed past the cutoff. Always check `content_truncated` before treating a missing field as "this page doesn't have it" rather than "this API didn't read that far."
 - **Markdown conversion is not semantic understanding.** `markdown_content` is a reasonably clean HTML→Markdown conversion, not a "read and understand what's actually the article" model — it doesn't reliably distinguish primary content from navigation, related-content widgets, paywalled teasers, or boilerplate on every layout.
+- **The cache trades freshness for speed, and that trade-off matters more for some fields than others.** A 15-minute-stale `<title>` is harmless; a 15-minute-stale price is not — which is why product-bearing responses get a separate, much shorter TTL (`PRODUCT_CACHE_TTL_SECONDS`, 3 minutes by default) rather than sharing the general 15-minute cache. Everything else still follows the general TTL: don't build a real-time price-monitoring product directly on the general cache path without accounting for that window.
 - **Arbitrary URL fetching is inherently unreliable**, independent of this API: pages can be slow, redirect repeatedly, be enormous, block automated clients, have TLS quirks, serve different content by geography/User-Agent, be temporarily down, or return unexpected status codes. SSRF protections, timeouts, redirect limits, byte caps, and the circuit breaker (see above) bound the damage but can't make an unreliable target reliable.
-- **Prefer the specific endpoint over `/api/v1/extract`** when you only need one thing — `/extract` runs the complete pipeline (see Lazy Extraction above for why the specialized endpoints are cheaper).
+- **"~150–300ms" describes the live-fetch network leg, not a ceiling on total response time.** Server-side processing genuinely is single-digit milliseconds (see the benchmark methodology in `benchmarks/`), but the *live* end-to-end time is dominated by however long the target site takes to respond — if the target takes 2.5s, so does your request. Don't read the headline numbers as "this API responds in 200ms regardless of target."
+- **There is no crawler.** The unit of work is one URL in, one page's data out — not "give me a domain and I'll discover/prioritize/crawl its pages for you." `/api/v1/links` classifies up to 100 hyperlinks *on the page you gave it*; it doesn't follow them. Analyzing a whole site (homepage + `/about` + `/pricing` + `/blog`, deduplicated, prioritized, crawled) is something you'd orchestrate externally, one `/extract` call per URL — this project deliberately doesn't grow a queue/worker/crawl-frontier system into what's meant to stay a fast, stateless per-request API.
+- **`/api/v1/contacts` finds public contact *signals*, not company or people intelligence.** It returns emails/phones/social links it found in the page's HTML — it does not identify who those belong to, their role, or verify anything. Turning `website -> public contact signals` into real lead enrichment (`domain -> company identification -> people -> roles -> verification -> confidence`) is out of scope here; the endpoint is intentionally named/tagged "Contact Discovery," not "Lead Enrichment," to avoid implying more than it does.
+- **Prefer the specific endpoint over `/api/v1/extract` — or use `fields=`.** `/extract` without `fields` runs the complete pipeline. `/extract?fields=detected_technologies` now runs exactly the same narrow extraction as `GET /api/v1/tech-stack` (and shares its cache entry) — `fields` genuinely skips unneeded work rather than computing everything and filtering afterward.
+- **This project's API surface is still evolving.** New fields ship frequently (`quality`, `product_field_confidence`, `bot_protection_detected`, and others were all added recently) — additive changes only, existing fields never change type (see the versioning notes below), but if you're integrating deeply, treat the live `/openapi.json` schema as the source of truth over any single README snippet, which can lag by a commit or two.
 
 None of this means the underlying approach is flawed for its intended job (fast metadata/SEO/contact/tech extraction from ordinary web pages) — it means "extract everything from any URL via one HTTP request" has a ceiling that only browser automation (Playwright/Puppeteer) can raise, at the cost of the speed and low resource footprint that make this API fast in the first place.
 
@@ -150,59 +158,60 @@ curl --request GET \
 
 ## 📊 Sample API Response (JSON)
 
+> [!NOTE]
+> This is **real, live output** from `GET /api/v1/extract?url=https://github.com`, captured 2026-08-10 — not a hand-edited illustration. It's deliberately left un-prettified, including the parts that aren't flattering: `detected_technologies` includes `"Contentful"` on a page that almost certainly isn't Contentful-powered (see `technology_details` below — the evidence is one CDN hostname in an `og:image` URL, hence only `0.75` confidence, not `0.98`), and `markdown_content`/`word_count` come back empty because GitHub's homepage is a JS-heavy shell whose initial HTML has no `<article>`-like content for this API to find. Both are the "Honest Limitations" section below in action, not this example glossing over them.
+
 ```json
 {
   "url": "https://github.com",
   "final_url": "https://github.com",
   "status_code": 200,
-  "execution_time_ms": 183.72,
+  "execution_time_ms": 481.95,
+  "bot_protection_detected": false,
   "metadata": {
-    "title": "GitHub · Change is constant. GitHub keeps you ahead.",
-    "description": "Join the world's most widely adopted AI-powered developer platform.",
-    "og_image": "https://github.githubassets.com/assets/campaign-social-04.png",
-    "og_type": "website",
-    "og_url": "https://github.com/",
-    "og_video": null,
-    "og_locale_alternate": [],
-    "keywords": null,
-    "author": null,
-    "site_name": "GitHub",
+    "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+    "description": "Join the world's most widely adopted, AI-powered developer platform where millions of developers, businesses, and the largest open source community build software that advances humanity.",
+    "og_image": "https://images.ctfassets.net/8aevphvgewt8/4pe4eOtUJ0ARpZRE4fNekf/f52b1f9c52f059a33170229883731ed0/GH-Homepage-Universe-img.png",
+    "og_type": "object",
+    "canonical_url": "https://github.com",
     "language": "en",
     "favicon": "https://github.githubassets.com/favicons/favicon.svg",
-    "canonical_url": "https://github.com/",
-    "theme_color": null,
-    "robots": "index, follow",
+    "theme_color": "#1e2327",
     "hreflang_tags": [
-      {"lang": "en", "url": "https://github.com/"},
-      {"lang": "es", "url": "https://github.com/?locale=es"}
+      {"lang": "en-us", "url": "https://github.com"},
+      {"lang": "es-419", "url": "https://github.com?locale=es-419"}
     ],
-    "h1_tags": ["The AI-powered developer platform"],
-    "images_count": 12,
-    "images_missing_alt_count": 2,
-    "links_count": 64,
-    "content_length_bytes": 65024
+    "h1_tags": [],
+    "links_count": 52,
+    "content_length_bytes": 110509
   },
-  "social_links": {
-    "twitter": null, "facebook": null, "instagram": null,
-    "linkedin": null, "github": "https://github.com/features/copilot",
-    "youtube": null, "telegram": null, "tiktok": null
-  },
-  "contacts": {"emails": [], "phones": []},
+  "social_links": { "github": "https://github.com/features/copilot", "twitter": null, "linkedin": null, "...": "17 more platforms, all null here" },
+  "contacts": { "emails": [], "phones": [] },
   "detected_technologies": ["Contentful"],
+  "technology_details": [
+    { "name": "Contentful", "confidence": 0.75, "evidence": ["ctfassets.net"], "category": "cms" }
+  ],
   "product_data": null,
-  "rss_feeds": [],
+  "quality": {
+    "score": 0.85,
+    "rendered": false,
+    "sources_used": ["meta"],
+    "warnings": [{ "field": null, "type": "CONTENT_TRUNCATED" }]
+  },
+  "rss_feeds": ["https://github.com/opensearch.xml"],
   "json_ld_schemas": [],
-  "security_score_percentage": 83.3,
-  "seo_score_percentage": 71.4,
-  "seo_passed_checks": ["Title tag present", "Meta description present", "Favicon icon present"],
-  "seo_warnings": ["Missing canonical tag"],
-  "internal_links": ["https://github.com/features", "https://github.com/pricing"],
-  "external_links": [],
+  "security_score_percentage": 64.2,
+  "seo_score_percentage": 75.0,
+  "seo_passed_checks": ["Title tag present with optimal length (10-70 chars)", "Canonical link tag present", "Favicon icon present", "HTTPS secure protocol active"],
+  "seo_warnings": ["Meta description present but sub-optimal length (186 chars)", "Missing <h1> primary heading", "No structured data (JSON-LD) found"],
+  "internal_links": ["https://github.com/", "https://github.com/login", "https://github.com/features/copilot"],
   "total_internal_count": 50,
   "total_external_count": 9,
-  "word_count": 320,
-  "reading_time_minutes": 1.6,
-  "markdown_content": "# The AI-powered developer platform\n\nGitHub is where..."
+  "word_count": 0,
+  "reading_time_minutes": 0.0,
+  "markdown_content": "",
+  "content_truncated": true,
+  "bytes_downloaded": 146437
 }
 ```
 
@@ -221,7 +230,7 @@ curl --request GET \
 | `/api/v1/schema` | `GET` | **Schema.org JSON-LD parser** — product prices, articles, events, organizations. |
 | `/api/v1/security` | `GET` | **Security headers audit** — HSTS, CSP, X-Frame-Options, Referrer Policy with percentage score. |
 | `/api/v1/markdown` | `GET` | **AI & LLM Markdown reader** — clean article text, word count, reading time. |
-| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 8-point audit score with warnings list. |
+| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 13-point audit score with warnings list plus structured `checks` (severity/evidence per check). |
 | `/api/v1/links` | `GET` | **Link classifier** — internal vs external hyperlinks (up to 100 per page). |
 | `/health` | `GET` | **Health check** — status, version, protection mode. |
 | `/health/details` | `GET` | **Operational health** — Redis mode/status, trust-proxy config. Requires `X-Health-Secret` if `HEALTH_DETAILS_SECRET` is set. |

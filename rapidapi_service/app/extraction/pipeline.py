@@ -73,6 +73,22 @@ from app.observability import metrics
 _raw_page_cache: TTLCache = TTLCache(maxsize=config.RAW_PAGE_CACHE_MAXSIZE, ttl=config.RAW_PAGE_CACHE_TTL_SECONDS)
 
 
+def _entry_expired(entry: Dict[str, Any]) -> bool:
+    expires_at = entry.get("expires_at")
+    return expires_at is not None and time.time() >= expires_at
+
+
+def _compute_entry_expiry(response_fields: Dict[str, Any]) -> Optional[float]:
+    """Product listings with a price get a much shorter effective TTL than
+    the rest of the cache (PRODUCT_CACHE_TTL_SECONDS, default 3 minutes vs
+    the general 15) — a stale price/availability is a materially worse
+    problem than a stale <title>. None means "use the cache's normal TTL"."""
+    product_data = response_fields.get("product_data")
+    if product_data and product_data.get("price") is not None:
+        return time.time() + config.PRODUCT_CACHE_TTL_SECONDS
+    return None
+
+
 async def fetch_and_extract_raw(
     url: str,
     user_agent: Optional[str] = None,
@@ -87,6 +103,12 @@ async def fetch_and_extract_raw(
     cache_key = build_cache_key(url, clean_ua, head_only, user_agent)
 
     entry = cache.get(cache_key)
+    if entry is not None and _entry_expired(entry):
+        # Whole entry has a shorter custom expiry (Plan feedback: a stale
+        # price is a materially different problem than a stale <title>) —
+        # treat it exactly like a cache miss, including for the
+        # top-up/accumulation logic in _fetch_and_extract_partial below.
+        entry = None
     if entry is not None and profile <= entry["computed"]:
         cached_data = entry["data"].copy()
         cached_data["execution_time_ms"] = 0.01
@@ -252,7 +274,11 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         "bot_protection_detected": bot_protection,
     }
 
-    cache[cache_key] = {"data": response_data, "computed": FULL_PROFILE}
+    cache[cache_key] = {
+        "data": response_data,
+        "computed": FULL_PROFILE,
+        "expires_at": _compute_entry_expiry(response_data),
+    }
     return response_data
 
 
@@ -297,7 +323,11 @@ async def _fetch_and_extract_partial(
         merged_profile = profile
 
     merged_data["execution_time_ms"] = round((time.time() - start_time) * 1000, 2)
-    cache[cache_key] = {"data": merged_data, "computed": merged_profile}
+    cache[cache_key] = {
+        "data": merged_data,
+        "computed": merged_profile,
+        "expires_at": _compute_entry_expiry(merged_data),
+    }
     return merged_data
 
 

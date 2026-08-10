@@ -20,7 +20,7 @@ router = APIRouter(tags=["SEO Audit"])
     dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)],
 )
 async def extract_seo_audit(
-    url: str = Query(..., description="The target URL to perform automated 8-point SEO diagnostic audit"),
+    url: str = Query(..., description="The target URL to perform automated 13-point SEO diagnostic audit"),
     user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """

@@ -83,6 +83,16 @@ class Settings(BaseSettings):
     CACHE_MAXSIZE: int = Field(default=5000, gt=0)
     CACHE_TTL_SECONDS: int = Field(default=900, gt=0)  # 15 minutes
 
+    # Shorter TTL specifically for responses whose product_data includes a
+    # price — a stale product listing (price/availability) is a materially
+    # different kind of "wrong" than a 15-minutes-stale <title> tag. Applies
+    # to the whole cached response, not just the product fields (Plan
+    # feedback: "yo querría que el TTL fuese configurable por tipo de
+    # endpoint/dato" — this is the bounded version of that: one override
+    # for the one field type where staleness has real consequences, not a
+    # full per-endpoint TTL matrix).
+    PRODUCT_CACHE_TTL_SECONDS: int = Field(default=180, gt=0)  # 3 minutes
+
     # Raw-fetch cache for lazy extraction (Plan §12) — bridges a short window
     # so a burst of different-profile requests for the same URL (e.g.
     # /tech-stack then /security moments apart) top up one cache entry
@@ -159,6 +169,7 @@ USER_AGENTS = [
 
 CACHE_MAXSIZE: int = _settings.CACHE_MAXSIZE
 CACHE_TTL_SECONDS: int = _settings.CACHE_TTL_SECONDS
+PRODUCT_CACHE_TTL_SECONDS: int = _settings.PRODUCT_CACHE_TTL_SECONDS
 RAW_PAGE_CACHE_MAXSIZE: int = _settings.RAW_PAGE_CACHE_MAXSIZE
 RAW_PAGE_CACHE_TTL_SECONDS: int = _settings.RAW_PAGE_CACHE_TTL_SECONDS
 DNS_CACHE_MAXSIZE: int = _settings.DNS_CACHE_MAXSIZE
