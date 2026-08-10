@@ -11,6 +11,7 @@ from fastapi.responses import ORJSONResponse
 from app import config
 from app.api import (
     contacts,
+    demo,
     extract,
     health,
     links,
@@ -60,6 +61,7 @@ app.middleware("http")(add_request_id)
 app.add_exception_handler(AppError, app_error_handler)
 
 app.include_router(ui.router)
+app.include_router(demo.router)
 app.include_router(health.router)
 app.include_router(observability.router)
 app.include_router(extract.router)

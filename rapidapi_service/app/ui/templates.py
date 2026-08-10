@@ -153,7 +153,7 @@ HOME_HTML = """
                 document.getElementById('results').style.display = 'none';
 
                 try {
-                    const res = await fetch(`/api/v1/extract?url=${encodeURIComponent(url)}`);
+                    const res = await fetch(`/demo/extract?url=${encodeURIComponent(url)}`);
                     const data = await res.json();
 
                     document.getElementById('loading').style.display = 'none';
