@@ -389,6 +389,11 @@ async def validate_url_ssrf(url: str) -> Tuple[str, str]:
         )
 
     port = parsed.port or (443 if scheme == "https" else 80)
+    if port not in (80, 443, 8080, 8443):
+        raise HTTPException(
+            status_code=400,
+            detail=f"SSRF Protection: Port {port} is not allowed. Only standard web ports (80, 443, 8080, 8443) are permitted."
+        )
 
     # 1. Resolve DNS ONCE (non-blocking) with 5-minute TTL DNS Caching
     dns_key = (hostname, port)
@@ -530,18 +535,23 @@ def html_to_markdown_clean(tree: HTMLParser, base_url: str) -> tuple[str, int, f
 async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None, head_only: bool = False) -> Dict[str, Any]:
     start_time = time.time()
     url = normalize_and_validate_url(url)
+    clean_ua = sanitize_user_agent(user_agent)
 
-    # Normalized Cache Lookup (Include head_only in cache key if head_only=True to prevent partial cache pollution)
+    # Normalized Cache Lookup (Include head_only and custom User-Agent to prevent cache cross-contamination)
     base_cache_key = normalize_cache_url(url)
-    cache_key = f"{base_cache_key}:head_only" if head_only else base_cache_key
+    cache_key_parts = [base_cache_key]
+    if head_only:
+        cache_key_parts.append("head_only")
+    if user_agent and str(user_agent).strip():
+        cache_key_parts.append(f"ua={clean_ua}")
+
+    cache_key = ":".join(cache_key_parts)
 
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
         cached_data["execution_time_ms"] = 0.01
         logger.info("Cache hit: %s", cache_key)
         return cached_data
-
-    clean_ua = sanitize_user_agent(user_agent)
     
     client = http_client
     should_close_client = False

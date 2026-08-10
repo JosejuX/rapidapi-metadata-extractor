@@ -208,6 +208,18 @@ def test_edge_case_resilience():
     assert "contacts" not in res_fields.json()
     print(" [Edge Case OK] Invalid fields filter returns base response without metadata keys")
 
+    # 6.4 Forbidden Port blocking (e.g. port 22 SSH)
+    res_port = client.get("/api/v1/extract?url=http://example.com:22")
+    assert res_port.status_code == 400
+    assert "Port 22 is not allowed" in res_port.json().get("detail", "")
+    print(" [Edge Case OK] Non-standard public port 22 blocked cleanly with 400 status code")
+
+    # 6.5 Custom User-Agent Cache Key Isolation
+    res_ua_1 = client.get("/api/v1/extract?url=https://python.org", headers={"User-Agent": "Googlebot/2.1"})
+    res_ua_2 = client.get("/api/v1/extract?url=https://python.org", headers={"User-Agent": "CustomScraper/1.0"})
+    assert res_ua_1.status_code == 200 and res_ua_2.status_code == 200
+    print(" [Edge Case OK] Custom User-Agent requests cache isolated without cross-contamination")
+
 if __name__ == "__main__":
     try:
         test_health()
