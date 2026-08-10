@@ -527,12 +527,13 @@ def html_to_markdown_clean(tree: HTMLParser, base_url: str) -> tuple[str, int, f
 
     return markdown_str, word_count, reading_time
 
-async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> Dict[str, Any]:
+async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None, head_only: bool = False) -> Dict[str, Any]:
     start_time = time.time()
     url = normalize_and_validate_url(url)
 
-    # Normalized Cache Lookup
-    cache_key = normalize_cache_url(url)
+    # Normalized Cache Lookup (Include head_only in cache key if head_only=True to prevent partial cache pollution)
+    base_cache_key = normalize_cache_url(url)
+    cache_key = f"{base_cache_key}:head_only" if head_only else base_cache_key
 
     if cache_key in cache:
         cached_data = cache[cache_key].copy()
@@ -624,11 +625,12 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
                     if total_bytes >= current_limit:
                         break
 
-                    # Tail-buffer early exit: stop as soon as </head> is found
-                    # and we already have enough data (≥16 KB)
-                    tail_buffer = (tail_buffer + chunk)[-128:]
-                    if b"</head>" in tail_buffer.lower() and total_bytes >= 16 * 1024:
-                        break
+                    # Tail-buffer early exit: ONLY when head_only=True (e.g. link-preview)
+                    # For full extraction, contacts, markdown, tech-stack — download full 64KB/256KB body!
+                    if head_only:
+                        tail_buffer = (tail_buffer + chunk)[-128:]
+                        if b"</head>" in tail_buffer.lower() and total_bytes >= 16 * 1024:
+                            break
                 break
 
 
@@ -1245,7 +1247,7 @@ async def extract_link_preview(
     Lightweight endpoint optimized for link preview cards (Social Cards / Unfurl):
     Returns title, description, og_image, favicon, favicon_high_res, site_name, and language.
     """
-    data = await fetch_and_extract_raw(url, user_agent)
+    data = await fetch_and_extract_raw(url, user_agent, head_only=True)
     meta = data["metadata"]
     return LinkPreviewResponse(
         url=data["url"],

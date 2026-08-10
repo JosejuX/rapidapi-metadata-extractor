@@ -34,7 +34,7 @@
 | 📲 **Social Profile Finder** | Auto-detects Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, TikTok. |
 | 🛠️ **100+ Tech Stack Detector** | WordPress, Shopify, WooCommerce, Webflow, React, Next.js, Vue, Angular, Svelte, TailwindCSS, Stripe, GA4, and 100+ more. |
 | 📦 **Schema.org JSON-LD + Product Parser** | Parses all structured data schemas AND auto-extracts Product price, currency, availability, brand, rating and review count. |
-| 📊 **SEO Audit Score** | 8-point automated SEO diagnostic (0–100%) with actionable warnings list. |
+| 📊 **On-Page SEO Health Audit Score** | 8-point automated on-page technical SEO diagnostic (0–100%) with actionable warnings list. |
 | 🔗 **Internal vs External Link Classifier** | Categorizes up to 100 hyperlinks per page. |
 | 🤖 **AI & LLM Clean Markdown Reader** | Converts article text to clean Markdown for ChatGPT, Claude, RAG, and AI agents. Includes word count and reading time. |
 | 📡 **RSS / Atom Feed Discovery** | Auto-discovers RSS and Atom feed URLs. |
