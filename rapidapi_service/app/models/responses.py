@@ -78,6 +78,7 @@ class SecurityHeadersResponse(BaseModel):
     execution_time_ms: float
     security_score_percentage: float
     security_headers: Dict[str, Optional[str]]
+    security_header_grades: Dict[str, str] = {}
 
 
 class MarkdownResponse(BaseModel):

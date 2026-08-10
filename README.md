@@ -38,7 +38,7 @@
 | 🔗 **Internal vs External Link Classifier** | Categorizes up to 100 hyperlinks per page. |
 | 🤖 **AI & LLM Clean Markdown Reader** | Converts article text to clean Markdown for ChatGPT, Claude, RAG, and AI agents. Includes word count and reading time. |
 | 📡 **RSS / Atom Feed Discovery** | Auto-discovers RSS and Atom feed URLs. |
-| 🔒 **Security Headers Audit** | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer Policy, Permissions Policy — with percentage score. |
+| 🔒 **Graded Security Headers Audit** | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer Policy, Permissions Policy — each graded `missing`/`weak`/`reasonable`/`strong` from its actual value (e.g. a CSP with `unsafe-inline` scores as weak, not as "present = full credit"), not just presence, rolled into the percentage score. `/api/v1/security` additionally returns `security_header_grades` with the per-header breakdown. |
 | 🚀 **15-Min In-Memory Cache** | Cached responses served in **< 0.01 ms** server-side processing time. |
 | ⚡ **4x Workers + Auto-Reconnect Redis** | Gunicorn multi-process cluster. Distributed rate limiting via Redis with startup ping validation, automatic reconnect every 30s, and immediate `degraded_fallback` status propagation to `/health/details`. |
 | 🔒 **Split `/health` + `/health/details`** | Minimal public liveness probe (`/health`). Full operational details (Redis mode, status, engine) secured via `HEALTH_DETAILS_SECRET` header on `/health/details`. |

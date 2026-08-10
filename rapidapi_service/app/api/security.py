@@ -34,5 +34,6 @@ async def extract_security_headers_endpoint(
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         security_score_percentage=data["security_score_percentage"],
-        security_headers=data["security_headers"]
+        security_headers=data["security_headers"],
+        security_header_grades=data.get("security_header_grades", {})
     )
