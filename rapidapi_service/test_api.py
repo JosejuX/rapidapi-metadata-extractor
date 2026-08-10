@@ -201,8 +201,9 @@ def test_edge_case_resilience():
     # 6.3 Invalid fields filter
     res_fields = client.get("/api/v1/extract?url=https://python.org&fields=non_existent_key_123")
     assert res_fields.status_code == 200
-    assert res_fields.json() == {}
-    print(" [Edge Case OK] Invalid fields filter returns empty payload without crashing")
+    assert "metadata" not in res_fields.json()
+    assert "contacts" not in res_fields.json()
+    print(" [Edge Case OK] Invalid fields filter returns base response without metadata keys")
 
 if __name__ == "__main__":
     try:

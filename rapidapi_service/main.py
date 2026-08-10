@@ -255,6 +255,7 @@ class LinkPreviewResponse(BaseModel):
     description: Optional[str]
     og_image: Optional[str]
     favicon: Optional[str]
+    favicon_high_res: Optional[str] = None
     site_name: Optional[str]
     language: Optional[str]
 
@@ -298,6 +299,8 @@ class MarkdownResponse(BaseModel):
     title: Optional[str]
     word_count: int
     reading_time_minutes: float
+    summary_snippet: Optional[str] = None
+    top_keywords: List[str] = []
     markdown_content: str
 
 class SeoAuditResponse(BaseModel):
@@ -907,6 +910,41 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
     total_seo_checks = len(passed_seo) + len(warnings_seo)
     seo_score = round((len(passed_seo) / total_seo_checks) * 100, 1) if total_seo_checks > 0 else 0.0
 
+    # High-Res Google Favicon Engine fallback URL
+    final_domain = urllib.parse.urlparse(final_url).netloc.lower()
+    favicon_high_res = f"https://www.google.com/s2/favicons?domain={final_domain}&sz=128" if final_domain else None
+
+    # Automated Video/Audio Embed Code Generator
+    video_embed_code = None
+    if og_video:
+        video_embed_code = f'<iframe src="{og_video}" width="100%" height="360" frameborder="0" allowfullscreen></iframe>'
+    elif "youtube.com/watch" in final_url or "youtu.be/" in final_url:
+        yt_match = re.search(r'(?:v=|\/)([a-zA-Z0-9_-]{11})', final_url)
+        if yt_match:
+            video_embed_code = f'<iframe width="560" height="315" src="https://www.youtube.com/embed/{yt_match.group(1)}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>'
+    elif "vimeo.com/" in final_url:
+        vm_match = re.search(r'vimeo\.com\/(\d+)', final_url)
+        if vm_match:
+            video_embed_code = f'<iframe src="https://player.vimeo.com/video/{vm_match.group(1)}" width="640" height="360" frameborder="0" allowfullscreen></iframe>'
+
+    # Natural Language Processing: Summary Snippet & Top Keywords Extractor
+    STOPWORDS = {'the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'in', 'for', 'of', 'with', 'an', 'by', 'as', 'from', 'that', 'it', 'are', 'this', 'be', 'or', 'we', 'you', 'your', 'our', 'us', 'de', 'la', 'el', 'en', 'un', 'que', 'los', 'las', 'por', 'con', 'para', 'com', 'org', 'net', 'http', 'https', 'www'}
+    words_all = [w.lower() for w in re.findall(r'\b[a-zA-Z]{3,15}\b', clean_text)]
+    words_filtered = [w for w in words_all if w not in STOPWORDS]
+    word_freq = {}
+    for w in words_filtered:
+        word_freq[w] = word_freq.get(w, 0) + 1
+    top_keywords = sorted(word_freq, key=word_freq.get, reverse=True)[:5]
+
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', clean_text) if len(s.strip()) > 20]
+    summary_snippet = " ".join(sentences[:2]) if sentences else (description or "")
+
+    ssl_status = {
+        "enabled": final_url.startswith("https://"),
+        "hsts_active": resp_headers.get("strict-transport-security") is not None,
+        "protocol": "HTTPS" if final_url.startswith("https://") else "HTTP"
+    }
+
     # Pass the existing tree — no redundant 4th HTMLParser creation.
     # strip_tags() inside will mutate the tree, so this must stay last.
     markdown_content, word_count, reading_time = html_to_markdown_clean(tree, final_url)
@@ -931,6 +969,7 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "site_name": site_name,
             "language": language,
             "favicon": favicon,
+            "favicon_high_res": favicon_high_res,
             "canonical_url": canonical_url,
             "theme_color": theme_color,
             "robots": robots_directive,
@@ -939,7 +978,11 @@ async def fetch_and_extract_raw(url: str, user_agent: Optional[str] = None) -> D
             "images_count": images_count,
             "images_missing_alt_count": images_missing_alt_count,
             "links_count": len(a_nodes),
-            "content_length_bytes": len(raw_bytes)
+            "content_length_bytes": len(raw_bytes),
+            "summary_snippet": summary_snippet,
+            "top_keywords": top_keywords,
+            "video_embed_code": video_embed_code,
+            "ssl_status": ssl_status
         },
         "social_links": social_links,
         "contacts": {
@@ -1200,7 +1243,7 @@ async def extract_link_preview(
 ):
     """
     Lightweight endpoint optimized for link preview cards (Social Cards / Unfurl):
-    Returns title, description, og_image, favicon, site_name, and language.
+    Returns title, description, og_image, favicon, favicon_high_res, site_name, and language.
     """
     data = await fetch_and_extract_raw(url, user_agent)
     meta = data["metadata"]
@@ -1213,6 +1256,7 @@ async def extract_link_preview(
         description=meta["description"],
         og_image=meta["og_image"],
         favicon=meta["favicon"],
+        favicon_high_res=meta.get("favicon_high_res"),
         site_name=meta["site_name"],
         language=meta["language"]
     )
@@ -1302,7 +1346,7 @@ async def extract_clean_markdown_article(
 ):
     """
     Dedicated endpoint for AI Agents, ChatGPT, Claude & RAG pipelines:
-    Strips noise (ads, navs, footers, scripts) and converts webpage article text into clean, structured Markdown.
+    Strips noise (ads, navs, footers, scripts) and converts webpage article text into clean, structured Markdown with NLP auto-summary and keywords.
     """
     data = await fetch_and_extract_raw(url, user_agent)
     meta = data["metadata"]
@@ -1314,6 +1358,8 @@ async def extract_clean_markdown_article(
         title=meta["title"],
         word_count=data["word_count"],
         reading_time_minutes=data["reading_time_minutes"],
+        summary_snippet=meta.get("summary_snippet"),
+        top_keywords=meta.get("top_keywords", []),
         markdown_content=data["markdown_content"]
     )
 
