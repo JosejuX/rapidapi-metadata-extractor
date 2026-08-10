@@ -12,6 +12,7 @@ class MetadataResponse(BaseModel):
     metadata: Dict[str, Any]
     social_links: Dict[str, Optional[str]]
     contacts: Dict[str, List[str]]
+    phone_details: List[Dict[str, Any]] = []
     detected_technologies: List[str]
     technology_details: List[Dict[str, Any]] = []
     rss_feeds: List[str]
@@ -51,6 +52,7 @@ class ContactsResponse(BaseModel):
     execution_time_ms: float
     emails: List[str]
     phones: List[str]
+    phone_details: List[Dict[str, Any]] = []
     social_links: Dict[str, Optional[str]]
 
 

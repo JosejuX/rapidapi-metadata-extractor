@@ -42,6 +42,7 @@ from app.extraction.jsonld import extract_json_ld, extract_rss_feeds
 from app.extraction.links import extract_links_and_socials
 from app.extraction.markdown import extract_summary_and_keywords, html_to_markdown_clean
 from app.extraction.metadata import extract_metadata_fields
+from app.extraction.phones import normalize_phones
 from app.extraction.product import extract_product_data
 from app.extraction.profiles import (
     FULL_PROFILE,
@@ -203,6 +204,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
             "emails": emails[:10],
             "phones": tel_phones[:5]
         },
+        "phone_details": normalize_phones(tel_phones),
         "detected_technologies": detected_tech,
         "technology_details": technology_details,
         "rss_feeds": rss_feeds,
@@ -316,6 +318,7 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
         tel_phones = link_data["tel_phones"] if link_data else []
         emails = extract_emails(clean_text, mailto_emails)
         fields["contacts"] = {"emails": emails[:10], "phones": tel_phones[:5]}
+        fields["phone_details"] = normalize_phones(tel_phones)
 
     if "tech" in profile:
         technology_details = detect_technologies_detailed(html_content)

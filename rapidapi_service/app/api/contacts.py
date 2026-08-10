@@ -36,5 +36,6 @@ async def extract_contacts(
         execution_time_ms=data["execution_time_ms"],
         emails=contacts["emails"],
         phones=contacts["phones"],
+        phone_details=data.get("phone_details", []),
         social_links=data["social_links"]
     )

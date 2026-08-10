@@ -30,7 +30,7 @@
 | 🧠 **Adaptive SPA Byte Limit** | Auto-detects React, Next.js, Vue, Angular, Nuxt, Svelte, Gatsby, Remix, Astro and expands download to 256 KB for richer data extraction. Static sites stay at 64 KB. |
 | 🛡️ **IP-Pinned Anti-SSRF Shield** | DNS resolved once, IP validated against private/loopback/cloud-metadata ranges, connection pinned to IP with TLS SNI. Eliminates DNS Rebinding & Redirect SSRF. |
 | 🎯 **Rich SEO & OpenGraph Metadata** | Title, Description, OG Image, OG Type, OG URL, OG Video, Favicon, Canonical URL, Language, Author, Theme Color, Robots directive, hreflang tags, H1 headings, image count. |
-| 📧 **Contact Extractor** | Public emails and phone numbers with smart DOM cleaning to eliminate false positives. |
+| 📧 **Contact Extractor** | Public emails and phone numbers with smart DOM cleaning to eliminate false positives. Phones are additionally normalized (`phone_details`) via libphonenumber — E.164 format, ISO country code, and possible/valid flags — for numbers that include a country code; numbers without one aren't guessed. |
 | 📲 **Social Profile Finder** | Auto-detects Twitter/X, LinkedIn, Facebook, Instagram, GitHub, YouTube, Telegram, TikTok. |
 | 🛠️ **100+ Tech Stack Detector** | WordPress, Shopify, WooCommerce, Webflow, React, Next.js, Vue, Angular, Svelte, TailwindCSS, Stripe, GA4, and 100+ more. |
 | 📦 **Schema.org JSON-LD + Product Parser** | Parses all structured data schemas AND auto-extracts Product price, currency, availability, brand, rating and review count. |
