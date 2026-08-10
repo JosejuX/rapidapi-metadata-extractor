@@ -53,6 +53,7 @@
 | 🔎 **Unicode-Aware SEO & Keywords** | Keyword extraction now matches non-ASCII scripts correctly (accented/Cyrillic/etc. content), and the SEO audit adds `lang` attribute, viewport, noindex, multi-H1, Twitter Card, and structured-data checks. |
 | ⚡ **Lazy Extraction Per Endpoint** | Specialized endpoints only run the extractors they actually need instead of the full pipeline — `/security` never even parses the HTML tree, `/tech-stack` skips links/metadata/markdown/SEO entirely. `/api/v1/extract` is unaffected (still the full payload). Results for different endpoints hitting the same URL share one upstream fetch and accumulate into the same cache entry. |
 | 🐘 **Mastodon Social Detection** | Best-effort detection of the largest public Mastodon instances (mastodon.social, fosstodon.org, hachyderm.io, ...) alongside the existing 20 platforms — decentralization means a hostname map can't cover every self-hosted instance, so this is intentionally partial rather than a false-positive risk. |
+| 🚦 **Rate-Limit Response Headers** | Every response (success or `429`) now carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`, so clients can back off proactively instead of learning the limit by hitting `429`. |
 
 ---
 
