@@ -1,0 +1,483 @@
+{
+  "summary": {
+    "generated_at": "2026-08-10T18:24:29Z",
+    "total_urls": 29,
+    "unexpected_errors": 0,
+    "unexpected_error_rate_pct": 0.0,
+    "overall_check_pass_rate_pct": 100.0,
+    "latency_ms": {
+      "p50": 439.0,
+      "p95": 803.0,
+      "max": 1277.5,
+      "mean": 488.2
+    },
+    "by_category": {
+      "blog": {
+        "n": 2,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "bot_protected": {
+        "n": 1,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "ecommerce": {
+        "n": 3,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "multilingual": {
+        "n": 1,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "news": {
+        "n": 3,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "saas": {
+        "n": 7,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "small": {
+        "n": 5,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "spa": {
+        "n": 6,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      },
+      "wordpress": {
+        "n": 1,
+        "check_pass_rate_pct": 100.0,
+        "unexpected_errors": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "url": "https://www.wikipedia.org",
+      "category": "small",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 439.0,
+      "title_found": "Wikipedia",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://github.com",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 405.6,
+      "title_found": "GitHub \u00b7 Change is constant. GitHub keeps you ahead. \u00b7 GitHub",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://news.ycombinator.com",
+      "category": "news",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 659.2,
+      "title_found": "Hacker News",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Web_scraping",
+      "category": "blog",
+      "checks": {
+        "title_match": true
+      },
+      "error": null,
+      "duration_ms": 335.2,
+      "title_found": "Web scraping - Wikipedia",
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://www.python.org",
+      "category": "small",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 278.8,
+      "title_found": "Welcome to Python.org",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://www.debian.org",
+      "category": "small",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 529.3,
+      "title_found": "Debian -- The Universal Operating System",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://www.iana.org",
+      "category": "small",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 267.7,
+      "title_found": "Internet Assigned Numbers Authority",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://www.rust-lang.org",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 323.6,
+      "title_found": "Rust Programming Language",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://www.djangoproject.com",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 299.2,
+      "title_found": "The web framework for perfectionists with deadlines | Django",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://www.php.net",
+      "category": "small",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 382.2,
+      "title_found": "PHP",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://www.mozilla.org/en-US/",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 630.4,
+      "title_found": "Mozilla - Internet for people, not profit (US)",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://nextjs.org",
+      "category": "spa",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true,
+        "tech_match": true
+      },
+      "error": null,
+      "duration_ms": 535.3,
+      "title_found": "Next.js by Vercel - The React Framework",
+      "json_ld_found": false,
+      "technologies_found": [
+        "Alpine.js",
+        "Next.js",
+        "TailwindCSS"
+      ],
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://vuejs.org",
+      "category": "spa",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true,
+        "tech_match": true
+      },
+      "error": null,
+      "duration_ms": 325.5,
+      "title_found": "Vue.js - The Progressive JavaScript Framework | Vue.js",
+      "json_ld_found": false,
+      "technologies_found": [
+        "Vercel",
+        "Vue.js"
+      ],
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://svelte.dev",
+      "category": "spa",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 348.4,
+      "title_found": "Svelte \u2022 Web development for the rest of us",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://angular.io",
+      "category": "spa",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 411.9,
+      "title_found": "Home \u2022 Angular",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://linear.app",
+      "category": "spa",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 512.5,
+      "title_found": "Linear \u2013 The system for product development",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://www.notion.so",
+      "category": "spa",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 633.2,
+      "title_found": "The AI workspace that works for you. | Notion",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://vercel.com",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 355.2,
+      "title_found": "Agentic Infrastructure - Vercel",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://stripe.com",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 667.0,
+      "title_found": "Stripe | Financial Infrastructure to Grow Your Revenue",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://laravel.com",
+      "category": "saas",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 803.0,
+      "title_found": "Laravel - The clean stack for Artisans and agents",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://wordpress.org",
+      "category": "wordpress",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true,
+        "tech_match": true
+      },
+      "error": null,
+      "duration_ms": 644.7,
+      "title_found": "Blog Tool, Publishing Platform, and CMS \u2013 WordPress.org",
+      "json_ld_found": true,
+      "technologies_found": [
+        "Alpine.js",
+        "Google Tag Manager",
+        "WordPress"
+      ],
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://css-tricks.com",
+      "category": "blog",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 627.8,
+      "title_found": "CSS-Tricks - Learning for front-end designers and developers",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://techcrunch.com",
+      "category": "news",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 1277.5,
+      "title_found": "TechCrunch | Startup and Technology News",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://www.bbc.com/news",
+      "category": "news",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 345.6,
+      "title_found": "BBC News - Breaking news, video and the latest top stories from the U.S. and around the world",
+      "json_ld_found": true,
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://allbirds.com",
+      "category": "ecommerce",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true,
+        "tech_match": true
+      },
+      "error": null,
+      "duration_ms": 477.4,
+      "title_found": "Allbirds: Comfortable, Sustainable Shoes & Apparel",
+      "json_ld_found": false,
+      "technologies_found": [
+        "Google Tag Manager",
+        "Shopify"
+      ],
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://books.toscrape.com",
+      "category": "ecommerce",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 652.2,
+      "title_found": "All products | Books to Scrape - Sandbox",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://webscraper.io/test-sites/e-commerce/allinone",
+      "category": "ecommerce",
+      "checks": {
+        "title_match": true,
+        "json_ld_match": true
+      },
+      "error": null,
+      "duration_ms": 270.6,
+      "title_found": "Allinone | Web Scraper Test Sites",
+      "json_ld_found": false,
+      "bot_protection_detected": false,
+      "content_truncated": false
+    },
+    {
+      "url": "https://es.wikipedia.org/wiki/Python",
+      "category": "multilingual",
+      "checks": {
+        "title_match": true
+      },
+      "error": null,
+      "duration_ms": 452.9,
+      "title_found": "Python - Wikipedia, la enciclopedia libre",
+      "bot_protection_detected": false,
+      "content_truncated": true
+    },
+    {
+      "url": "https://www.w3schools.com",
+      "category": "bot_protected",
+      "checks": {
+        "expected_block_but_succeeded": true
+      },
+      "error": null,
+      "duration_ms": 268.2
+    }
+  ]
+}

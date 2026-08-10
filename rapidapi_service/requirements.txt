@@ -1,6 +1,7 @@
 fastapi==0.115.14
 uvicorn==0.34.3
 httpx==0.28.1
+brotli==1.2.0
 pydantic==2.11.7
 pydantic-settings==2.15.0
 cachetools==5.5.2
