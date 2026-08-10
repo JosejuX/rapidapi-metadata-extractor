@@ -120,7 +120,7 @@
         <rect class="cmd-clip" x="0" y="0" height="30" width="0"/>
       </clipPath>
       <text class="code" x="24" y="72" clip-path="url(#cmd-reveal)">
-        <tspan class="prompt">$ </tspan><tspan class="cmd">curl "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=github.com"</tspan>
+        <tspan class="prompt">$ </tspan><tspan class="cmd">curl "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract?url=github.com"</tspan>
       </text>
       <rect class="cursor" x="24" y="59" width="8" height="16"/>
     </g>

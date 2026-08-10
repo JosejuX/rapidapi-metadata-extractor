@@ -454,8 +454,8 @@ HOME_HTML = """
             document.getElementById('copyBtn').addEventListener('click', () => {
                 if (!lastData) return;
                 const host = (lastData.url || '').replace(/^https?:\\/\\//, '');
-                const cmd = 'curl "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=' + host + '" \\\\\\n' +
-                    '  -H "X-RapidAPI-Key: YOUR_KEY" -H "X-RapidAPI-Host: web-metadata-and-contact-extractor-p.rapidapi.com"';
+                const cmd = 'curl "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract?url=' + host + '" \\\\\\n' +
+                    '  -H "X-RapidAPI-Key: YOUR_KEY" -H "X-RapidAPI-Host: web-metadata-and-contact-extractor.p.rapidapi.com"';
                 const done = () => {
                     const label = document.getElementById('copyLabel');
                     label.textContent = 'Copied!';

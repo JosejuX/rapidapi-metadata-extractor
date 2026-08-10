@@ -33,8 +33,8 @@
 **Or call it directly** (swap in your key from RapidAPI for production use):
 
 ```bash
-curl "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=github.com" \
-  -H "X-RapidAPI-Key: YOUR_KEY" -H "X-RapidAPI-Host: web-metadata-and-contact-extractor-p.rapidapi.com"
+curl "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract?url=github.com" \
+  -H "X-RapidAPI-Key: YOUR_KEY" -H "X-RapidAPI-Host: web-metadata-and-contact-extractor.p.rapidapi.com"
 ```
 
 ---
@@ -58,9 +58,9 @@ import requests
 RAPIDAPI_KEY = "YOUR_RAPIDAPI_KEY"
 HEADERS = {
     "X-RapidAPI-Key": RAPIDAPI_KEY,
-    "X-RapidAPI-Host": "web-metadata-and-contact-extractor-p.rapidapi.com",
+    "X-RapidAPI-Host": "web-metadata-and-contact-extractor.p.rapidapi.com",
 }
-BASE = "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract"
+BASE = "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract"
 
 for url in ["shop-a.com", "shop-b.com", "shop-c.com"]:
     data = requests.get(BASE, headers=HEADERS, params={"url": url}).json()
@@ -78,8 +78,8 @@ import requests
 def read_url_as_markdown(url: str) -> str:
     """Tool function an LLM agent can call to read any public webpage."""
     resp = requests.get(
-        "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/markdown",
-        headers={"X-RapidAPI-Key": "YOUR_KEY", "X-RapidAPI-Host": "web-metadata-and-contact-extractor-p.rapidapi.com"},
+        "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/markdown",
+        headers={"X-RapidAPI-Key": "YOUR_KEY", "X-RapidAPI-Host": "web-metadata-and-contact-extractor.p.rapidapi.com"},
         params={"url": url},
     ).json()
     return resp["markdown_content"]
@@ -201,10 +201,10 @@ None of this means the underlying approach is flawed for its intended job (fast 
 ```python
 import requests
 
-url = "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract"
+url = "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract"
 headers = {
     "X-RapidAPI-Key": "YOUR_RAPIDAPI_KEY_HERE",
-    "X-RapidAPI-Host": "web-metadata-and-contact-extractor-p.rapidapi.com"
+    "X-RapidAPI-Host": "web-metadata-and-contact-extractor.p.rapidapi.com"
 }
 params = {"url": "https://github.com"}
 
@@ -223,11 +223,11 @@ print(f"Time:         {data['execution_time_ms']} ms")
 ### JavaScript / Node.js
 
 ```javascript
-const url = 'https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=https%3A%2F%2Fgithub.com';
+const url = 'https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract?url=https%3A%2F%2Fgithub.com';
 const response = await fetch(url, {
   headers: {
     'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY_HERE',
-    'X-RapidAPI-Host': 'web-metadata-and-contact-extractor-p.rapidapi.com'
+    'X-RapidAPI-Host': 'web-metadata-and-contact-extractor.p.rapidapi.com'
   }
 });
 const data = await response.json();
@@ -241,8 +241,8 @@ console.log('Time:', data.execution_time_ms, 'ms');
 
 ```bash
 curl --request GET \
-  --url 'https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=https%3A%2F%2Fgithub.com' \
-  --header 'X-RapidAPI-Host: web-metadata-and-contact-extractor-p.rapidapi.com' \
+  --url 'https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract?url=https%3A%2F%2Fgithub.com' \
+  --header 'X-RapidAPI-Host: web-metadata-and-contact-extractor.p.rapidapi.com' \
   --header 'X-RapidAPI-Key: YOUR_RAPIDAPI_KEY_HERE'
 ```
 
