@@ -40,54 +40,95 @@ dns_cache: TTLCache = TTLCache(maxsize=2000, ttl=300)
 
 http_client: Optional[httpx.AsyncClient] = None
 redis_client = None
-redis_status = "disabled"
-redis_mode = "local_ttlcache"
+redis_status = "disabled"   # "connected" | "degraded_fallback" | "disabled"
+redis_mode   = "local_ttlcache"  # "distributed" | "local_ttlcache"
 
 REDIS_URL = os.getenv("REDIS_URL", None)
 
+# ------------------------------------------------------------------------------
+# Redis helpers: connect + verify with a single PING
+# ------------------------------------------------------------------------------
+async def _try_connect_redis() -> bool:
+    """Attempt (re)connection to Redis. Returns True on success, False on failure.
+    Never raises — all errors are logged and swallowed."""
+    global redis_client, redis_status, redis_mode
+    try:
+        import redis.asyncio as aioredis
+        client = aioredis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=2.0)
+        await client.ping()
+        if redis_client:
+            try:
+                await redis_client.aclose()
+            except Exception:
+                pass
+        redis_client = client
+        redis_status = "connected"
+        redis_mode   = "distributed"
+        redis_hostname = urllib.parse.urlparse(REDIS_URL).hostname or "configured"
+        logger.info("Redis rate-limiter connected & verified (Host: %s)", redis_hostname)
+        return True
+    except Exception as exc:
+        redis_status = "degraded_fallback"
+        redis_mode   = "local_ttlcache"
+        logger.warning("Redis unavailable — using local TTLCache fallback: %s", exc)
+        return False
+
+async def _redis_reconnect_loop():
+    """Background task: tries to reconnect to Redis every 30 s when in fallback mode.
+    Stops automatically when the app shuts down (task is cancelled by lifespan)."""
+    while True:
+        await asyncio.sleep(30)
+        if redis_status != "connected" and REDIS_URL:
+            logger.info("Redis reconnect attempt…")
+            await _try_connect_redis()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global http_client, redis_client, redis_status, redis_mode
+    global http_client
     http_client = httpx.AsyncClient(
         http2=True,
         timeout=httpx.Timeout(4.5, connect=1.5, read=3.0),
         limits=httpx.Limits(max_keepalive_connections=500, max_connections=2000, keepalive_expiry=120.0),
         follow_redirects=False
     )
-    
-    # Startup Redis Connection & Ping Health Check
+
+    # Startup Redis ping + launch background reconnect loop
+    reconnect_task = None
     if REDIS_URL:
-        try:
-            import redis.asyncio as redis
-            redis_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=2.0)
-            await redis_client.ping()
-            redis_status = "connected"
-            redis_mode = "distributed"
-            redis_hostname = urllib.parse.urlparse(REDIS_URL).hostname or "configured"
-            logger.info("Distributed Redis Rate Limiter connected & verified (Host: %s)", redis_hostname)
-        except Exception as e:
-            redis_status = "degraded_fallback"
-            redis_mode = "local_ttlcache"
-            logger.warning("Redis startup ping failed, running in degraded local TTLCache mode: %s", e)
+        await _try_connect_redis()
+        reconnect_task = asyncio.create_task(_redis_reconnect_loop())
 
     yield
 
+    # Graceful shutdown
+    if reconnect_task:
+        reconnect_task.cancel()
+        try:
+            await reconnect_task
+        except asyncio.CancelledError:
+            pass
     if http_client:
         await http_client.aclose()
     if redis_client:
-        await redis_client.aclose()
+        try:
+            await redis_client.aclose()
+        except Exception:
+            pass
 
 # ------------------------------------------------------------------------------
 # FastAPI App Config (ORJSON Serializer + Native IP Rate Limiter & Security)
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
-    description="Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.9.0",
+    description=(
+        "Ultra-fast, enterprise REST API: Extended Metadata, Anti-SSRF Shield, "
+        "Async Redis Rate Limiter (auto-reconnect + health observability), "
+        "Multi-Worker Gunicorn, Favicon HD Engine, NLP Summary, HTTP/2, ORJSON."
+    ),
+    version="3.0.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
-
 
 # CORS Fix: allow_credentials=False for security (API Key / Header Auth, no cookies)
 app.add_middleware(
@@ -99,6 +140,7 @@ app.add_middleware(
 )
 
 RAPIDAPI_PROXY_SECRET = os.getenv("RAPIDAPI_PROXY_SECRET", None)
+HEALTH_DETAILS_SECRET = os.getenv("HEALTH_DETAILS_SECRET", None)
 
 # TRUST_PROXY: Set to "true" only when deployed behind a trusted reverse proxy
 # (e.g. Render, Fly.io, Nginx). Enables X-Forwarded-For for real client IP.
@@ -107,16 +149,20 @@ TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
 
 # ------------------------------------------------------------------------------
 # Application Rate Limiter (Distributed Async Redis or Native TTLCache Fallback)
+# NOTE: Fixed-window algorithm — intentional design choice for simplicity and
+#       Redis efficiency (single INCR + conditional EXPIRE per request).
+#       Trade-off: burst of up to 2×limit at window boundary is acceptable for
+#       a public SaaS API protected upstream by RapidAPI Gateway.
 # ------------------------------------------------------------------------------
 ip_rate_tracker: TTLCache = TTLCache(maxsize=10000, ttl=60)
 
 async def check_ip_rate_limit(request: Request):
-    """Enforces 60 requests/minute limit per client IP address asynchronously.
-    Uses non-blocking distributed Redis when REDIS_URL is set (multi-worker/cluster),
-    falling back to in-memory TTLCache for single-instance deployments.
-    """
-    client_ip = request.client.host if request.client else "127.0.0.1"
+    """Enforces 60 req/min per client IP.
+    Uses non-blocking Redis when available; falls back to per-process TTLCache.
+    On Redis failure mid-request the status is updated immediately."""
+    global redis_status, redis_mode
 
+    client_ip = request.client.host if request.client else "127.0.0.1"
     if TRUST_PROXY:
         forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
@@ -129,36 +175,38 @@ async def check_ip_rate_limit(request: Request):
             if count == 1:
                 await redis_client.expire(rate_key, 60)
             if count > 60:
-                logger.warning("Redis Rate limit exceeded for IP: %s (%d req/min)", client_ip, count)
+                logger.warning("Rate limit exceeded via Redis for IP %s (%d/min)", client_ip, count)
                 raise HTTPException(
                     status_code=429,
-                    detail="Rate limit exceeded: 60 requests per minute limit reached per client IP address."
+                    detail="Rate limit exceeded: 60 requests per minute per client IP."
                 )
             return
         except HTTPException:
             raise
-        except Exception as e:
-            logger.warning("Redis rate check error, falling back to local tracker: %s", e)
+        except Exception as exc:
+            # Mark degraded immediately so /health reflects reality
+            redis_status = "degraded_fallback"
+            redis_mode   = "local_ttlcache"
+            logger.warning("Redis rate-check failed — switched to local TTLCache: %s", exc)
 
-    current_time = time.time()
+    # Local TTLCache fallback (per-process fixed window)
+    now = time.time()
     history = ip_rate_tracker.get(client_ip, [])
-    valid_history = [t for t in history if current_time - t < 60]
-
-    if len(valid_history) >= 60:
-        logger.warning("Rate limit exceeded for IP: %s", client_ip)
+    valid = [t for t in history if now - t < 60]
+    if len(valid) >= 60:
+        logger.warning("Rate limit exceeded via TTLCache for IP %s", client_ip)
         raise HTTPException(
             status_code=429,
-            detail="Rate limit exceeded: 60 requests per minute limit reached per client IP address."
+            detail="Rate limit exceeded: 60 requests per minute per client IP."
         )
-
-    valid_history.append(current_time)
-    ip_rate_tracker[client_ip] = valid_history
+    valid.append(now)
+    ip_rate_tracker[client_ip] = valid
 
 # Standard Error Responses for OpenAPI Documentation
 COMMON_RESPONSES = {
     400: {"description": "Bad Request: Invalid URL format, missing domain hostname, or blocked by IP-Pinned Anti-SSRF Shield"},
     403: {"description": "Forbidden: Invalid or missing X-RapidAPI-Proxy-Secret authentication header"},
-    429: {"description": "Too Many Requests: Native rate limit exceeded (60 requests/min per IP)"}
+    429: {"description": "Too Many Requests: Rate limit exceeded (60 requests/min per IP)"}
 }
 
 
@@ -1248,17 +1296,36 @@ def home_ui():
     </html>
     """
 
-@app.get("/health", tags=["Health"], responses=COMMON_RESPONSES)
+@app.get("/health", tags=["Health"])
 def health_check():
+    """Public liveness probe — exposes only service name and version.
+    Use /health/details (requires HEALTH_DETAILS_SECRET header) for full operational status."""
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.9.0",
-        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
+        "version": "3.0.0",
+    }
+
+
+@app.get("/health/details", tags=["Health"])
+def health_details(request: Request):
+    """Protected operational health endpoint.
+    Requires X-Health-Secret header matching HEALTH_DETAILS_SECRET env var.
+    Returns Redis mode, status, engine details and configuration flags for monitoring."""
+    if HEALTH_DETAILS_SECRET:
+        provided = request.headers.get("x-health-secret", "")
+        if not provided or provided != HEALTH_DETAILS_SECRET:
+            raise HTTPException(status_code=403, detail="Invalid or missing X-Health-Secret header.")
+    return {
+        "status": "online",
+        "service": "Web Metadata & Contact Extractor API",
+        "version": "3.0.0",
+        "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + IP-Pinned Anti-SSRF Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
         "trust_proxy": TRUST_PROXY,
         "rate_limiter_mode": redis_mode,
         "redis_status": redis_status,
+        "redis_configured": bool(REDIS_URL),
     }
 
 

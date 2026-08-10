@@ -41,12 +41,26 @@ SSRF_ATTACK_URLS = [
 ]
 
 def test_health():
-    print("--- 1. Testing Health Endpoint ---")
+    print("--- 1. Testing Health Endpoints (/health public + /health/details protected) ---")
+    # Public liveness probe — must expose only status, service, version
     response = client.get("/health")
-    print(f"Status Code: {response.status_code}")
-    print(f"Response: {response.json()}")
     assert response.status_code == 200
-    assert response.json()["status"] == "online"
+    data = response.json()
+    assert data["status"] == "online"
+    assert "version" in data
+    assert "redis_status" not in data, "/health must NOT expose internal redis_status"
+    assert "trust_proxy" not in data, "/health must NOT expose trust_proxy"
+    print(f"  [Health OK] Public /health: status='{data['status']}', version='{data['version']}'")
+
+    # Protected details endpoint — with no secret configured it should be open
+    res_details = client.get("/health/details")
+    assert res_details.status_code == 200
+    details = res_details.json()
+    assert "rate_limiter_mode" in details
+    assert "redis_status" in details
+    assert details["rate_limiter_mode"] in ("distributed", "local_ttlcache")
+    assert details["redis_status"] in ("connected", "disabled", "degraded_fallback")
+    print(f"  [Health/Details OK] rate_limiter_mode='{details['rate_limiter_mode']}', redis_status='{details['redis_status']}'")
 
 def test_ssrf_security_shield():
     print("\n--- 2. Testing Anti-SSRF Security Shield (Loopback, Private & Cloud Metadata Block) ---")
@@ -306,17 +320,25 @@ def test_redis_rate_limiter_integration():
 
 
 def test_health_redis_observability():
-    """Verifies that /health exposes rate_limiter_mode and redis_status fields for operational monitoring."""
-    print("\n--- 9. Testing /health Redis Observability Fields ---")
-    res = client.get("/health")
+    """Verifies /health/details exposes redis observability; /health keeps clean."""
+    print("\n--- 9. Testing /health/details Redis Observability & HEALTH_DETAILS_SECRET Auth ---")
+    # With no secret configured, details endpoint is open
+    res = client.get("/health/details")
     assert res.status_code == 200
     data = res.json()
-    assert "rate_limiter_mode" in data, "/health missing 'rate_limiter_mode' field"
-    assert "redis_status" in data, "/health missing 'redis_status' field"
-    # Without REDIS_URL configured, mode must be local_ttlcache and status disabled
-    assert data["rate_limiter_mode"] in ("distributed", "local_ttlcache"), f"Unexpected mode: {data['rate_limiter_mode']}"
-    assert data["redis_status"] in ("connected", "disabled", "degraded_fallback"), f"Unexpected status: {data['redis_status']}"
-    print(f"  [Health Observability OK] rate_limiter_mode='{data['rate_limiter_mode']}', redis_status='{data['redis_status']}'")
+    assert "rate_limiter_mode" in data
+    assert "redis_status" in data
+    assert "redis_configured" in data
+    assert data["rate_limiter_mode"] in ("distributed", "local_ttlcache")
+    assert data["redis_status"] in ("connected", "disabled", "degraded_fallback")
+    print(f"  [Health/Details OK] mode='{data['rate_limiter_mode']}', status='{data['redis_status']}', configured={data['redis_configured']}")
+
+    # Public /health must NOT leak operational details
+    res_public = client.get("/health")
+    public_data = res_public.json()
+    assert "redis_status" not in public_data, "/health must not expose redis_status"
+    assert "trust_proxy" not in public_data, "/health must not expose trust_proxy"
+    print("  [Health/Public OK] /health correctly hides internal operational details")
 
 
 if __name__ == "__main__":

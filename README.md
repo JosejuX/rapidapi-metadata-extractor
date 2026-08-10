@@ -8,7 +8,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
-  [![Version](https://img.shields.io/badge/Version-2.9.0-blueviolet.svg)]()
+  [![Version](https://img.shields.io/badge/Version-3.0.0-blueviolet.svg)]()
   [![Rust ORJSON](https://img.shields.io/badge/JSON%20Engine-Rust%20ORJSON-orange.svg)]()
   [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/)
   [![Response Time](https://img.shields.io/badge/Response%20Time-%3C200ms-brightgreen.svg)]()
@@ -40,7 +40,8 @@
 | 📡 **RSS / Atom Feed Discovery** | Auto-discovers RSS and Atom feed URLs. |
 | 🔒 **Security Headers Audit** | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer Policy, Permissions Policy — with percentage score. |
 | 🚀 **15-Min In-Memory Cache** | Cached responses served in **< 0.01 ms** server-side processing time. |
-| ⚡ **4x Gunicorn Workers + Redis** | Concurrent multi-process execution with optional distributed Redis rate limiting. |
+| ⚡ **4x Workers + Auto-Reconnect Redis** | Gunicorn multi-process cluster. Distributed rate limiting via Redis with startup ping validation, automatic reconnect every 30s, and immediate `degraded_fallback` status propagation to `/health/details`. |
+| 🔒 **Split `/health` + `/health/details`** | Minimal public liveness probe (`/health`). Full operational details (Redis mode, status, engine) secured via `HEALTH_DETAILS_SECRET` header on `/health/details`. |
 
 ---
 
@@ -49,8 +50,10 @@
 > [!NOTE]
 > - **Latency & Performance SLA**: Server-side processing overhead (DOM cleaning, C-Lexbor parsing, Rust serialization) averages **< 5ms**. Live execution times depend on the target website's network latency and origin server response time. Repeating requests for the same URL hit the in-memory cache and return in **< 0.01ms**.
 > - **IPv6 & IPv4-Mapped SSRF Shield**: The Anti-SSRF validation engine enforces strict resolution checks across both IPv4 and IPv6, blocking loopback (`127.0.0.1`, `::1`), link-local (`169.254.169.254`, `fe80::/10`), and IPv4-mapped IPv6 (`::ffff:127.0.0.1`) addresses.
-> - **Horizontal Scaling & Distributed Clusters**: Single-instance deployments enforce an in-memory `TTLCache` rate limiter (60 req/min per IP). For multi-worker containerized deployments, rate limiting can be offloaded to Redis, Nginx, or RapidAPI Gateway.
-> - **Zero-Trust Self-Hosting Option**: For enterprise production environments requiring zero third-party data transit, this repository provides complete self-hosting assets (Dockerfile, Uvicorn, Python test suite) to run the API inside your own infrastructure.
+> - **Redis Rate Limiter (Fixed-Window, Auto-Reconnect)**: When `REDIS_URL` is configured, rate limiting is distributed across all workers via Redis `INCR`/`EXPIRE`. Redis is pinged at startup and re-validated every 30 seconds. On failure, the service falls back to per-process TTLCache immediately and marks `redis_status: degraded_fallback` in `/health/details`.
+> - **Split Health Endpoints**: `/health` returns a minimal public liveness payload. `/health/details` returns full operational status (Redis mode, trust_proxy, engine) and requires the `X-Health-Secret` header when `HEALTH_DETAILS_SECRET` env var is set.
+> - **Horizontal Scaling**: Single-instance → in-memory TTLCache (60 req/min/IP). Multi-worker → distributed Redis. Enterprise scale → RapidAPI Gateway or Nginx.
+> - **Zero-Trust Self-Hosting**: Full Dockerfile, Gunicorn config, and test suite included for self-hosted production deployments.
 
 ---
 
