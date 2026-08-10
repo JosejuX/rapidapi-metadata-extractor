@@ -54,3 +54,8 @@ def test_429_response_has_rate_limit_headers_with_zero_remaining():
     assert last.headers["retry-after"] == "60"
     assert last.headers["x-ratelimit-remaining"] == "0"
     assert last.headers["x-ratelimit-limit"] == str(config.RATE_LIMIT_PER_MINUTE)
+
+    # This test deliberately exhausts the shared, module-level ip_rate_tracker
+    # for the TestClient's IP — leaving it exhausted would fail any later
+    # test in the same run that hits a real route via TestClient.
+    ip_rate_tracker.clear()

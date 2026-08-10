@@ -187,7 +187,7 @@ curl --request GET \
 }
 ```
 
-> Since v4.0.0, `metadata` also includes `viewport`, `twitter_card`, and `h1_count`; `/api/v1/tech-stack` additionally returns `technology_details` (confidence score, matched evidence, category per technology); and `product_data` (when present) includes `sku`, `mpn`, `gtin`/`isbn`, `seller`, `condition`, and price-range fields. All additions are purely additive — no existing field was removed or changed type.
+> Since v4.0.0, `metadata` also includes `viewport`, `twitter_card`, and `h1_count`; `/api/v1/tech-stack` additionally returns `technology_details` (confidence score, matched evidence, category per technology); and `product_data` (when present) includes `sku`, `mpn`, `gtin`/`isbn`, `seller`, `condition`, and price-range fields. All additions are purely additive — no existing field was removed or changed type. Fields that were previously untyped `Dict`/`List[Dict]` blobs (`metadata`, `technology_details`, `seo_checks`, `phone_details`) now have documented Pydantic models in the OpenAPI schema — with `product_data`, previously missing from `/api/v1/extract` despite being shown here, now actually returned.
 
 ---
 
