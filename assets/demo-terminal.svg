@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-label="Terminal demo: curl request to the Web Metadata Extractor API and its JSON response">
+  <title>Web Metadata &amp; Contact Extractor API — terminal demo</title>
+  <defs>
+    <clipPath id="term-clip">
+      <rect x="0" y="0" width="900" height="400" rx="12" ry="12"/>
+    </clipPath>
+    <style><![CDATA[
+      .term-bg { fill: #0d1117; }
+      .term-bar { fill: #161b22; }
+      .dot { }
+      .dot-red { fill: #ff5f56; }
+      .dot-yellow { fill: #ffbd2e; }
+      .dot-green { fill: #27c93f; }
+      .term-title { fill: #8b949e; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; }
+      .code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 15px; }
+      .prompt { fill: #27c93f; }
+      .cmd { fill: #c9d1d9; }
+      .key { fill: #79c0ff; }
+      .str { fill: #a5d6ff; }
+      .num { fill: #f2cc60; }
+      .comment { fill: #8b949e; }
+
+      .typed-cmd {
+        white-space: pre;
+        overflow: hidden;
+      }
+      .cmd-clip {
+        animation: reveal-cmd 9s steps(60, end) infinite;
+      }
+      @keyframes reveal-cmd {
+        0%   { width: 0; }
+        22%  { width: 760px; }
+        95%  { width: 760px; }
+        100% { width: 0; }
+      }
+
+      .out-line { opacity: 0; animation-duration: 9s; animation-iteration-count: infinite; animation-timing-function: ease-out; }
+      @keyframes fade-hold {
+        0%   { opacity: 0; transform: translateY(4px); }
+        26%  { opacity: 0; transform: translateY(4px); }
+        32%  { opacity: 1; transform: translateY(0); }
+        90%  { opacity: 1; transform: translateY(0); }
+        96%  { opacity: 0; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(0); }
+      }
+      .l1 { animation-name: fade-hold; animation-delay: 0s; }
+      .l2 { animation-name: fade-hold2; }
+      @keyframes fade-hold2 {
+        0%   { opacity: 0; transform: translateY(4px); }
+        36%  { opacity: 0; transform: translateY(4px); }
+        42%  { opacity: 1; transform: translateY(0); }
+        90%  { opacity: 1; transform: translateY(0); }
+        96%  { opacity: 0; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(0); }
+      }
+      .l3 { animation-name: fade-hold3; }
+      @keyframes fade-hold3 {
+        0%   { opacity: 0; transform: translateY(4px); }
+        46%  { opacity: 0; transform: translateY(4px); }
+        52%  { opacity: 1; transform: translateY(0); }
+        90%  { opacity: 1; transform: translateY(0); }
+        96%  { opacity: 0; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(0); }
+      }
+      .l4 { animation-name: fade-hold4; }
+      @keyframes fade-hold4 {
+        0%   { opacity: 0; transform: translateY(4px); }
+        56%  { opacity: 0; transform: translateY(4px); }
+        62%  { opacity: 1; transform: translateY(0); }
+        90%  { opacity: 1; transform: translateY(0); }
+        96%  { opacity: 0; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(0); }
+      }
+      .l5 { animation-name: fade-hold5; }
+      @keyframes fade-hold5 {
+        0%   { opacity: 0; transform: translateY(4px); }
+        66%  { opacity: 0; transform: translateY(4px); }
+        72%  { opacity: 1; transform: translateY(0); }
+        90%  { opacity: 1; transform: translateY(0); }
+        96%  { opacity: 0; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(0); }
+      }
+      .l6 { animation-name: fade-hold6; }
+      @keyframes fade-hold6 {
+        0%   { opacity: 0; transform: translateY(4px); }
+        76%  { opacity: 0; transform: translateY(4px); }
+        82%  { opacity: 1; transform: translateY(0); }
+        90%  { opacity: 1; transform: translateY(0); }
+        96%  { opacity: 0; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(0); }
+      }
+
+      .cursor {
+        fill: #c9d1d9;
+        animation: cursor-move 9s steps(60, end) infinite, blink 1s steps(1) infinite;
+      }
+      @keyframes cursor-move {
+        0%   { transform: translateX(0px); }
+        22%  { transform: translateX(760px); }
+        95%  { transform: translateX(760px); }
+        100% { transform: translateX(0px); }
+      }
+      @keyframes blink {
+        0%, 49%  { opacity: 1; }
+        50%, 100% { opacity: 0; }
+      }
+    ]]></style>
+  </defs>
+
+  <g clip-path="url(#term-clip)">
+    <rect class="term-bg" x="0" y="0" width="900" height="400"/>
+    <rect class="term-bar" x="0" y="0" width="900" height="36"/>
+    <circle class="dot dot-red" cx="22" cy="18" r="6"/>
+    <circle class="dot dot-yellow" cx="44" cy="18" r="6"/>
+    <circle class="dot dot-green" cx="66" cy="18" r="6"/>
+    <text class="term-title" x="450" y="22" text-anchor="middle">bash — web-metadata-extractor</text>
+
+    <g class="typed-cmd">
+      <clipPath id="cmd-reveal">
+        <rect class="cmd-clip" x="0" y="0" height="30" width="0"/>
+      </clipPath>
+      <text class="code" x="24" y="72" clip-path="url(#cmd-reveal)">
+        <tspan class="prompt">$ </tspan><tspan class="cmd">curl "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=github.com"</tspan>
+      </text>
+      <rect class="cursor" x="24" y="59" width="8" height="16"/>
+    </g>
+
+    <text class="code out-line l1" x="24" y="118"><tspan class="comment">// 481ms live fetch → structured JSON</tspan></text>
+    <text class="code out-line l2" x="24" y="150"><tspan class="key">"title"</tspan><tspan class="cmd">: </tspan><tspan class="str">"GitHub · Change is constant."</tspan></text>
+    <text class="code out-line l3" x="24" y="182"><tspan class="key">"detected_technologies"</tspan><tspan class="cmd">: [</tspan><tspan class="str">"Contentful"</tspan><tspan class="cmd">]</tspan></text>
+    <text class="code out-line l4" x="24" y="214"><tspan class="key">"security_score"</tspan><tspan class="cmd">: </tspan><tspan class="num">86</tspan></text>
+    <text class="code out-line l5" x="24" y="246"><tspan class="key">"quality"</tspan><tspan class="cmd">: { </tspan><tspan class="key">"score"</tspan><tspan class="cmd">: </tspan><tspan class="num">0.85</tspan><tspan class="cmd">, </tspan><tspan class="key">"rendered"</tspan><tspan class="cmd">: </tspan><tspan class="num">false</tspan><tspan class="cmd"> }</tspan></text>
+    <text class="code out-line l6" x="24" y="278"><tspan class="key">"execution_time_ms"</tspan><tspan class="cmd">: </tspan><tspan class="num">481.95</tspan></text>
+  </g>
+</svg>

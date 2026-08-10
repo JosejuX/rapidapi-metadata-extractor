@@ -18,7 +18,16 @@
 
   [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
 
+  ![Terminal demo: curl request and JSON response](assets/demo-terminal.svg)
+
 </div>
+
+**Try it right now** (swap in your key from RapidAPI):
+
+```bash
+curl "https://web-metadata-and-contact-extractor-p.rapidapi.com/api/v1/extract?url=github.com" \
+  -H "X-RapidAPI-Key: YOUR_KEY" -H "X-RapidAPI-Host: web-metadata-and-contact-extractor-p.rapidapi.com"
+```
 
 ---
 
