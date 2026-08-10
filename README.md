@@ -40,6 +40,7 @@
 | 📡 **RSS / Atom Feed Discovery** | Auto-discovers RSS and Atom feed URLs. |
 | 🔒 **Security Headers Audit** | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer Policy, Permissions Policy — with percentage score. |
 | 🚀 **15-Min In-Memory Cache** | Cached responses served in **< 0.01 ms** server-side processing time. |
+| ⚡ **4x Gunicorn Workers + Redis** | Concurrent multi-process execution with optional distributed Redis rate limiting. |
 
 ---
 
