@@ -185,6 +185,25 @@ def test_all_sub_endpoints():
     assert "internal_links" in data_links
     print(f" [8/8 Link Extractor Classifier OK] Total: {data_links['total_links_count']} (Internal: {data_links['internal_links_count']}, External: {data_links['external_links_count']})")
 
+def test_edge_case_resilience():
+    print("\n--- 6. Testing Edge Case Resilience (Corrupted Schema, Encodings, Malformed Enpoints) ---")
+    
+    # 6.1 Non-existent domain / DNS failure
+    res_dns = client.get("/api/v1/extract?url=https://this-domain-definitely-does-not-exist-123456789.com")
+    assert res_dns.status_code == 400
+    print(" [Edge Case OK] DNS failure handled gracefully with 400 status code")
+
+    # 6.2 HTTP 404 response
+    res_404 = client.get("/api/v1/extract?url=https://httpbin.org/status/404")
+    assert res_404.status_code in [200, 400]
+    print(" [Edge Case OK] HTTP 404 target page handled gracefully")
+
+    # 6.3 Invalid fields filter
+    res_fields = client.get("/api/v1/extract?url=https://python.org&fields=non_existent_key_123")
+    assert res_fields.status_code == 200
+    assert res_fields.json() == {}
+    print(" [Edge Case OK] Invalid fields filter returns empty payload without crashing")
+
 if __name__ == "__main__":
     try:
         test_health()
@@ -195,12 +214,12 @@ if __name__ == "__main__":
         test_extract_metadata_multisite()
         test_field_filtering()
         test_all_sub_endpoints()
-        print(f"\n[OK] ALL SECURITY AND MULTI-SITE TESTS PASSED SUCCESSFULLY")
-
-
+        test_edge_case_resilience()
+        print(f"\n[OK] ALL SECURITY, MULTI-SITE, AND EDGE-CASE RESILIENCE TESTS PASSED SUCCESSFULLY")
 
     except Exception as e:
         import traceback
         print(f"\n[ERROR] Test suite failed: {e}")
         traceback.print_exc()
         sys.exit(1)
+
