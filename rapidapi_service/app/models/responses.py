@@ -20,6 +20,7 @@ class MetadataResponse(BaseModel):
     seo_score_percentage: float
     seo_passed_checks: List[str]
     seo_warnings: List[str]
+    seo_checks: List[Dict[str, Any]] = []
     internal_links: List[str]
     external_links: List[str]
     total_internal_count: int
@@ -102,6 +103,7 @@ class SeoAuditResponse(BaseModel):
     seo_score_percentage: float
     passed_checks: List[str]
     warnings: List[str]
+    checks: List[Dict[str, Any]] = []
 
 
 class LinksResponse(BaseModel):

@@ -164,7 +164,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
 
     sec_headers, security_score, security_grades = extract_security_headers(resp_headers)
 
-    passed_seo, warnings_seo, seo_score = run_seo_audit(
+    passed_seo, warnings_seo, seo_score, seo_checks = run_seo_audit(
         title=metadata["title"],
         description=metadata["description"],
         canonical_url=metadata["canonical_url"],
@@ -214,6 +214,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         "seo_score_percentage": seo_score,
         "seo_passed_checks": passed_seo,
         "seo_warnings": warnings_seo,
+        "seo_checks": seo_checks,
         "internal_links": internal_links,
         "external_links": external_links,
         "total_internal_count": len(internal_links),
@@ -338,7 +339,7 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
 
     if "seo" in profile:
         meta_for_seo = fields["metadata"]  # "seo" always pulls in "metadata" via _GROUP_DEPS
-        passed_seo, warnings_seo, seo_score = run_seo_audit(
+        passed_seo, warnings_seo, seo_score, seo_checks = run_seo_audit(
             title=meta_for_seo["title"],
             description=meta_for_seo["description"],
             canonical_url=meta_for_seo["canonical_url"],
@@ -358,6 +359,7 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
         fields["seo_score_percentage"] = seo_score
         fields["seo_passed_checks"] = passed_seo
         fields["seo_warnings"] = warnings_seo
+        fields["seo_checks"] = seo_checks
 
     if "summary_keywords" in profile:
         meta_for_summary = fields["metadata"]  # always pulled in via _GROUP_DEPS

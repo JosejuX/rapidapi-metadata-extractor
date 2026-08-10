@@ -8,8 +8,32 @@ does shift (more checks -> different ratio) since the audit is now more
 thorough; this is the intended outcome of Plan §23, not a bug — scores are
 explicitly a heuristic, improvable metric per Plan §24's same framing for
 security scores, not a fixed contract value.
+
+Plan §23 also asks for structured per-check data (check id / passed /
+severity / evidence) instead of only flat pass/warning strings — added as a
+new, additive `seo_checks` return value / response field. `passed_seo` and
+`warnings_seo` are unchanged; `seo_checks` carries the same information in a
+machine-readable shape, with a `severity` reflecting how much a *failed*
+check matters (critical/important/minor), not how "good" a pass is.
 """
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+_SEVERITY = {
+    "title": "critical",
+    "meta_description": "critical",
+    "canonical": "important",
+    "h1_present": "critical",
+    "og_image": "important",
+    "favicon": "minor",
+    "image_alt_coverage": "important",
+    "https": "critical",
+    "lang_attribute": "important",
+    "viewport": "important",
+    "indexability": "critical",
+    "multiple_h1": "minor",
+    "twitter_card": "minor",
+    "structured_data": "minor",
+}
 
 
 def run_seo_audit(
@@ -28,88 +52,98 @@ def run_seo_audit(
     h1_count: Optional[int] = None,
     twitter_card: Optional[str] = None,
     has_structured_data: bool = False,
-) -> Tuple[List[str], List[str], float]:
+) -> Tuple[List[str], List[str], float, List[Dict[str, Any]]]:
     passed_seo: List[str] = []
     warnings_seo: List[str] = []
+    checks: List[Dict[str, Any]] = []
+
+    def record(check_id: str, passed: bool, message: str):
+        (passed_seo if passed else warnings_seo).append(message)
+        checks.append({
+            "check": check_id,
+            "passed": passed,
+            "severity": _SEVERITY[check_id],
+            "evidence": message,
+        })
 
     if title:
-        if 10 <= len(title) <= 70:
-            passed_seo.append("Title tag present with optimal length (10-70 chars)")
-        else:
-            warnings_seo.append(f"Title tag present but sub-optimal length ({len(title)} chars)")
+        ok = 10 <= len(title) <= 70
+        record("title", ok,
+               "Title tag present with optimal length (10-70 chars)" if ok
+               else f"Title tag present but sub-optimal length ({len(title)} chars)")
     else:
-        warnings_seo.append("Missing <title> tag")
+        record("title", False, "Missing <title> tag")
 
     if description:
-        if 50 <= len(description) <= 160:
-            passed_seo.append("Meta description present with optimal length (50-160 chars)")
-        else:
-            warnings_seo.append(f"Meta description present but sub-optimal length ({len(description)} chars)")
+        ok = 50 <= len(description) <= 160
+        record("meta_description", ok,
+               "Meta description present with optimal length (50-160 chars)" if ok
+               else f"Meta description present but sub-optimal length ({len(description)} chars)")
     else:
-        warnings_seo.append("Missing <meta name='description'> tag")
+        record("meta_description", False, "Missing <meta name='description'> tag")
 
     if canonical_url:
-        passed_seo.append("Canonical link tag present")
+        record("canonical", True, "Canonical link tag present")
     else:
-        warnings_seo.append("Missing <link rel='canonical'> tag")
+        record("canonical", False, "Missing <link rel='canonical'> tag")
 
     if h1_tags:
-        passed_seo.append(f"Primary H1 heading present ({len(h1_tags)} found)")
+        record("h1_present", True, f"Primary H1 heading present ({len(h1_tags)} found)")
     else:
-        warnings_seo.append("Missing <h1> primary heading")
+        record("h1_present", False, "Missing <h1> primary heading")
 
     if og_image:
-        passed_seo.append("OpenGraph image present for social sharing")
+        record("og_image", True, "OpenGraph image present for social sharing")
     else:
-        warnings_seo.append("Missing og:image social preview tag")
+        record("og_image", False, "Missing og:image social preview tag")
 
     if favicon:
-        passed_seo.append("Favicon icon present")
+        record("favicon", True, "Favicon icon present")
     else:
-        warnings_seo.append("Missing favicon icon")
+        record("favicon", False, "Missing favicon icon")
 
     if images_count > 0:
         alt_coverage = round(((images_count - images_missing_alt_count) / images_count) * 100, 1)
-        if alt_coverage >= 80.0:
-            passed_seo.append(f"High image accessibility ALT coverage ({alt_coverage}%)")
-        else:
-            warnings_seo.append(f"Low image accessibility ALT coverage ({alt_coverage}% of images have ALT text)")
+        ok = alt_coverage >= 80.0
+        record("image_alt_coverage", ok,
+               f"High image accessibility ALT coverage ({alt_coverage}%)" if ok
+               else f"Low image accessibility ALT coverage ({alt_coverage}% of images have ALT text)")
 
     if final_url.startswith("https://"):
-        passed_seo.append("HTTPS secure protocol active")
+        record("https", True, "HTTPS secure protocol active")
     else:
-        warnings_seo.append("Non-secure HTTP protocol used")
+        record("https", False, "Non-secure HTTP protocol used")
 
     # Plan §23 additional checks.
     if language:
-        passed_seo.append(f"HTML lang attribute present ('{language}')")
+        record("lang_attribute", True, f"HTML lang attribute present ('{language}')")
     else:
-        warnings_seo.append("Missing lang attribute on <html> element")
+        record("lang_attribute", False, "Missing lang attribute on <html> element")
 
     if viewport:
-        passed_seo.append("Responsive viewport meta tag present")
+        record("viewport", True, "Responsive viewport meta tag present")
     else:
-        warnings_seo.append("Missing viewport meta tag (mobile responsiveness)")
+        record("viewport", False, "Missing viewport meta tag (mobile responsiveness)")
 
     if robots_directive and "noindex" in robots_directive.lower():
-        warnings_seo.append("Page is marked noindex — excluded from search engine indexing")
+        record("indexability", False, "Page is marked noindex — excluded from search engine indexing")
     else:
-        passed_seo.append("Page is indexable (no noindex directive)")
+        record("indexability", True, "Page is indexable (no noindex directive)")
 
     if h1_count is not None and h1_count > 1:
-        warnings_seo.append(f"Multiple <h1> headings found ({h1_count}) — should typically have exactly one")
+        record("multiple_h1", False, f"Multiple <h1> headings found ({h1_count}) — should typically have exactly one")
 
     if twitter_card:
-        passed_seo.append("Twitter Card meta tag present for social sharing")
+        record("twitter_card", True, "Twitter Card meta tag present for social sharing")
     else:
-        warnings_seo.append("Missing Twitter Card meta tag")
+        record("twitter_card", False, "Missing Twitter Card meta tag")
 
     if has_structured_data:
-        passed_seo.append("Schema.org structured data (JSON-LD) present")
+        record("structured_data", True, "Schema.org structured data (JSON-LD) present")
     else:
-        warnings_seo.append("No structured data (JSON-LD) found")
+        record("structured_data", False, "No structured data (JSON-LD) found")
 
     total_seo_checks = len(passed_seo) + len(warnings_seo)
     seo_score = round((len(passed_seo) / total_seo_checks) * 100, 1) if total_seo_checks > 0 else 0.0
 
-    return passed_seo, warnings_seo, seo_score
+    return passed_seo, warnings_seo, seo_score, checks

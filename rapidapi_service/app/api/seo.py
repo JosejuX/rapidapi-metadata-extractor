@@ -35,5 +35,6 @@ async def extract_seo_audit(
         execution_time_ms=data["execution_time_ms"],
         seo_score_percentage=data["seo_score_percentage"],
         passed_checks=data["seo_passed_checks"],
-        warnings=data["seo_warnings"]
+        warnings=data["seo_warnings"],
+        checks=data.get("seo_checks", [])
     )
