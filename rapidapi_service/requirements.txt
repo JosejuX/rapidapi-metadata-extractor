@@ -2,6 +2,7 @@ fastapi==0.115.14
 uvicorn==0.34.3
 httpx==0.28.1
 pydantic==2.11.7
+pydantic-settings==2.15.0
 cachetools==5.5.2
 selectolax==0.3.27
 h2==4.4.1

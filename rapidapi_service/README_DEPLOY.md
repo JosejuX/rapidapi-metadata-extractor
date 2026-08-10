@@ -73,6 +73,25 @@ curl https://your-api.onrender.com/health
 # Must return: "rapidapi_protected": true
 ```
 
+### Advanced (optional) tuning
+
+Everything below has a sane default and doesn't need to be set. All of it is
+validated at startup via pydantic-settings — an invalid value (e.g. a
+negative rate limit, or `STREAM_SOFT_LIMIT` set above `STREAM_HARD_LIMIT`)
+fails immediately with a clear error instead of surfacing as a confusing
+runtime bug later.
+
+| Variable | Default | Description |
+|:---|:---|:---|
+| `RATE_LIMIT_PER_MINUTE` | `60` | Requests/minute per client IP. |
+| `CACHE_TTL_SECONDS` | `900` | How long extraction results stay cached. |
+| `CACHE_MAXSIZE` | `5000` | Max number of cached URLs (L1, in-process). |
+| `MAX_REDIRECTS` | `5` | Redirect hops followed before giving up. |
+| `STREAM_SOFT_LIMIT` / `STREAM_HARD_LIMIT` | `65536` / `262144` | Adaptive byte-fetch limits (bytes) — see the Adaptive SPA Byte Limit feature. |
+| `MAX_CONCURRENT_REQUESTS_PER_HOST` | `6` | Outbound concurrency cap per target host. |
+| `TRUSTED_PROXY_IPS` | *(empty)* | Comma-separated CIDRs allowed to set `X-Forwarded-For` when `TRUST_PROXY=true`. |
+| `REDIS_URL` | *(unset)* | Enables distributed rate limiting across workers when set. |
+
 ---
 
 ## STEP 4: Publish & Monetize on RapidAPI
