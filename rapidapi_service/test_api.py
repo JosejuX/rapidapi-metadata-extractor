@@ -34,7 +34,10 @@ SSRF_ATTACK_URLS = [
     "javascript:alert(1)",
     "http://2130706433",
     "http://0x7f000001",
-    "http://0177.0.0.1"
+    "http://0177.0.0.1",
+    "http://[::1]",
+    "http://[::ffff:127.0.0.1]",
+    "http://[fe80::1]"
 ]
 
 def test_health():
