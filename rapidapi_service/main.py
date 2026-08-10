@@ -39,19 +39,43 @@ cache: TTLCache = TTLCache(maxsize=5000, ttl=900)
 dns_cache: TTLCache = TTLCache(maxsize=2000, ttl=300)
 
 http_client: Optional[httpx.AsyncClient] = None
+redis_client = None
+redis_status = "disabled"
+redis_mode = "local_ttlcache"
+
+REDIS_URL = os.getenv("REDIS_URL", None)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global http_client
+    global http_client, redis_client, redis_status, redis_mode
     http_client = httpx.AsyncClient(
         http2=True,
         timeout=httpx.Timeout(4.5, connect=1.5, read=3.0),
         limits=httpx.Limits(max_keepalive_connections=500, max_connections=2000, keepalive_expiry=120.0),
         follow_redirects=False
     )
+    
+    # Startup Redis Connection & Ping Health Check
+    if REDIS_URL:
+        try:
+            import redis.asyncio as redis
+            redis_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=2.0)
+            await redis_client.ping()
+            redis_status = "connected"
+            redis_mode = "distributed"
+            redis_hostname = urllib.parse.urlparse(REDIS_URL).hostname or "configured"
+            logger.info("Distributed Redis Rate Limiter connected & verified (Host: %s)", redis_hostname)
+        except Exception as e:
+            redis_status = "degraded_fallback"
+            redis_mode = "local_ttlcache"
+            logger.warning("Redis startup ping failed, running in degraded local TTLCache mode: %s", e)
+
     yield
+
     if http_client:
         await http_client.aclose()
+    if redis_client:
+        await redis_client.aclose()
 
 # ------------------------------------------------------------------------------
 # FastAPI App Config (ORJSON Serializer + Native IP Rate Limiter & Security)
@@ -59,7 +83,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
     description="Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.8.1",
+    version="2.9.0",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -84,18 +108,6 @@ TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
 # ------------------------------------------------------------------------------
 # Application Rate Limiter (Distributed Async Redis or Native TTLCache Fallback)
 # ------------------------------------------------------------------------------
-REDIS_URL = os.getenv("REDIS_URL", None)
-redis_client = None
-
-if REDIS_URL:
-    try:
-        import redis.asyncio as redis
-        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-        redis_hostname = urllib.parse.urlparse(REDIS_URL).hostname or "configured"
-        logger.info("Distributed Redis Rate Limiter active (Host: %s)", redis_hostname)
-    except Exception as e:
-        logger.warning("Redis initialization failed, falling back to in-memory TTLCache: %s", e)
-
 ip_rate_tracker: TTLCache = TTLCache(maxsize=10000, ttl=60)
 
 async def check_ip_rate_limit(request: Request):
@@ -110,7 +122,7 @@ async def check_ip_rate_limit(request: Request):
         if forwarded_for:
             client_ip = forwarded_for.split(",")[0].strip()
 
-    if redis_client:
+    if redis_client and redis_status == "connected":
         try:
             rate_key = f"rate:{client_ip}"
             count = await redis_client.incr(rate_key)
@@ -1241,10 +1253,12 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.8.1",
+        "version": "2.9.0",
         "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
-        "trust_proxy": TRUST_PROXY
+        "trust_proxy": TRUST_PROXY,
+        "rate_limiter_mode": redis_mode,
+        "redis_status": redis_status,
     }
 
 
