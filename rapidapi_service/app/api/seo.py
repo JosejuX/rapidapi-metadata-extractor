@@ -33,6 +33,7 @@ async def extract_seo_audit(
         final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
+        bot_protection_detected=data.get("bot_protection_detected", False),
         seo_score_percentage=data["seo_score_percentage"],
         passed_checks=data["seo_passed_checks"],
         warnings=data["seo_warnings"],

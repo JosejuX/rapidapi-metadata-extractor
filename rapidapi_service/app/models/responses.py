@@ -107,6 +107,7 @@ class MetadataResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     metadata: Metadata
     social_links: Dict[str, Optional[str]]
     contacts: Dict[str, List[str]]
@@ -135,6 +136,7 @@ class LinkPreviewResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     title: Optional[str]
     description: Optional[str]
     og_image: Optional[str]
@@ -149,6 +151,7 @@ class ContactsResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     emails: List[str]
     phones: List[str]
     phone_details: List[PhoneDetail] = []
@@ -160,6 +163,7 @@ class TechStackResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     detected_technologies: List[str]
     technology_details: List[TechnologyDetail] = []
 
@@ -169,6 +173,7 @@ class SchemaResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     json_ld_count: int
     json_ld_schemas: List[Any]
 
@@ -178,6 +183,7 @@ class SecurityHeadersResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     security_score_percentage: float
     security_headers: Dict[str, Optional[str]]
     security_header_grades: Dict[str, str] = {}
@@ -188,6 +194,7 @@ class MarkdownResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     title: Optional[str]
     word_count: int
     reading_time_minutes: float
@@ -201,6 +208,7 @@ class SeoAuditResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     seo_score_percentage: float
     passed_checks: List[str]
     warnings: List[str]
@@ -212,6 +220,7 @@ class LinksResponse(BaseModel):
     final_url: str
     status_code: int
     execution_time_ms: float
+    bot_protection_detected: bool = False
     total_links_count: int
     internal_links_count: int
     external_links_count: int

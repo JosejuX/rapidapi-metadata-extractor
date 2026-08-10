@@ -54,6 +54,7 @@
 | ⚡ **Lazy Extraction Per Endpoint** | Specialized endpoints only run the extractors they actually need instead of the full pipeline — `/security` never even parses the HTML tree, `/tech-stack` skips links/metadata/markdown/SEO entirely. `/api/v1/extract` is unaffected (still the full payload). Results for different endpoints hitting the same URL share one upstream fetch and accumulate into the same cache entry. |
 | 🐘 **Mastodon Social Detection** | Best-effort detection of the largest public Mastodon instances (mastodon.social, fosstodon.org, hachyderm.io, ...) alongside the existing 20 platforms — decentralization means a hostname map can't cover every self-hosted instance, so this is intentionally partial rather than a false-positive risk. |
 | 🚦 **Rate-Limit Response Headers** | Every response (success or `429`) now carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`, so clients can back off proactively instead of learning the limit by hitting `429`. |
+| 🛡️ **Bot-Protection Detection** | Cheap heuristic signature check (no extra requests, no JS execution) flags when the fetched page is a Cloudflare/Akamai/PerimeterX/CAPTCHA challenge page rather than real content — either as `bot_protection_detected: true` on a normal response, or as a specific `BOT_PROTECTION_DETECTED` error code (instead of a generic upstream error) when the challenge is served with a 403/429/503 status. Distinguishes "the target blocked this request" from "the target genuinely has no title/description" or "a real outage". |
 
 ---
 
@@ -71,6 +72,21 @@
 > - **Lazy Extraction**: `/api/v1/extract` always runs the full pipeline (unchanged). Specialized endpoints instead run only their required extractor groups — e.g. `/api/v1/security` skips HTML parsing entirely (headers-only), `/api/v1/tech-stack` skips metadata/links/markdown/SEO. Calling two different specialized endpoints for the same URL shares one upstream fetch and merges into one cache entry.
 > - **Tech Signature Prefiltering**: Each of the 100+ technology signatures is gated by a cheap substring check against a once-lowercased copy of the page before its regex ever runs, instead of running every regex unconditionally — same detection output, substantially less CPU on pages with many `<script>` tags.
 > - **Observability**: `GET /metrics` exposes Prometheus counters and latency histograms (requests, cache hit/miss, SSRF blocks, circuit-breaker trips, rate limiting, bytes downloaded, etc.). All application logs are single-line JSON with a `request_id` shared with the `X-Request-ID` response header, for correlating a request across logs and metrics.
+
+---
+
+## ⚠️ Honest Limitations
+
+This API fetches raw HTTP responses and parses HTML — it is **not a browser**. That's a deliberate trade-off for speed (no browser startup, no JS execution wait, minimal memory per request), and it comes with real ceilings that no amount of additional regex or extractors can fully remove:
+
+- **No JavaScript execution.** Content that only exists after client-side rendering (many SPAs, some login-gated pages, content behind "load more" interactions) will be missing or incomplete. A static/SSR page (most blogs, e-commerce product pages, marketing sites, GitHub, Wikipedia) works great; a client-rendered single-page app whose initial HTML is just `<div id="root"></div>` will return mostly empty results — the API cannot execute the JS that would fill it in.
+- **Bot-protection / CAPTCHAs are detected, not bypassed.** `bot_protection_detected` (see above) tells you *that* Cloudflare/Akamai/PerimeterX/a CAPTCHA blocked the request — it does not solve the challenge. There is no workaround for this short of running a real browser.
+- **Extraction is heuristic, not ground truth.** Technology detection, contact info, social links, and product data are pattern/signature-based. Treat `"Shopify"` in `detected_technologies` or an email in `contacts.emails` as a strong signal, not a certainty — false positives and false negatives are possible, especially on unusual page structures.
+- **Markdown conversion is not semantic understanding.** `markdown_content` is a reasonably clean HTML→Markdown conversion, not a "read and understand what's actually the article" model — it doesn't reliably distinguish primary content from navigation, related-content widgets, paywalled teasers, or boilerplate on every layout.
+- **Arbitrary URL fetching is inherently unreliable**, independent of this API: pages can be slow, redirect repeatedly, be enormous, block automated clients, have TLS quirks, serve different content by geography/User-Agent, be temporarily down, or return unexpected status codes. SSRF protections, timeouts, redirect limits, byte caps, and the circuit breaker (see above) bound the damage but can't make an unreliable target reliable.
+- **Prefer the specific endpoint over `/api/v1/extract`** when you only need one thing — `/extract` runs the complete pipeline (see Lazy Extraction above for why the specialized endpoints are cheaper).
+
+None of this means the underlying approach is flawed for its intended job (fast metadata/SEO/contact/tech extraction from ordinary web pages) — it means "extract everything from any URL via one HTTP request" has a ceiling that only browser automation (Playwright/Puppeteer) can raise, at the cost of the speed and low resource footprint that make this API fast in the first place.
 
 ---
 

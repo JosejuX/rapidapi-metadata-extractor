@@ -34,6 +34,7 @@ async def extract_link_preview(
         final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
+        bot_protection_detected=data.get("bot_protection_detected", False),
         title=meta["title"],
         description=meta["description"],
         og_image=meta["og_image"],

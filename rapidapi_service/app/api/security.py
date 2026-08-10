@@ -33,6 +33,7 @@ async def extract_security_headers_endpoint(
         final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
+        bot_protection_detected=data.get("bot_protection_detected", False),
         security_score_percentage=data["security_score_percentage"],
         security_headers=data["security_headers"],
         security_header_grades=data.get("security_header_grades", {})

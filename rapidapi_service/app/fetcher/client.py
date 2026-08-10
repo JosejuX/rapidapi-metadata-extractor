@@ -17,6 +17,7 @@ import httpx
 
 from app import config
 from app.core.errors import (
+    BOT_PROTECTION_DETECTED,
     CONNECTION_TIMEOUT,
     HEADERS_TOO_LARGE,
     REDIRECT_LIMIT,
@@ -28,10 +29,39 @@ from app.core.errors import (
     AppError,
 )
 from app.core.logging import logger
+from app.extraction.bot_protection import detect_bot_protection
 from app.fetcher import circuit_breaker
 from app.observability import metrics
 from app.security.limits import acquire_host_slot, release_host_slot
 from app.security.ssrf import validate_url_ssrf
+
+# Status codes commonly used by WAFs/CDNs to serve a challenge/CAPTCHA page
+# instead of the real content (Plan §4/§34: distinguish "target blocked us"
+# from a generic upstream failure). Only these three get the extra bounded
+# peek below — everything else keeps failing fast without reading any body,
+# same as before.
+_BOT_PROTECTION_CHECK_STATUS_CODES = (403, 429, 503)
+_BOT_PROTECTION_PEEK_LIMIT = 20_000  # matches bot_protection.detect_bot_protection's own size cap
+
+
+async def _peek_body(response: httpx.Response, limit: int) -> bytes:
+    """Bounded read for a small peek at an error response body. Same
+    decompression-bomb defense as the main streaming loop below: always
+    slice each incoming chunk down to remaining headroom before appending,
+    never trust a single chunk to be small just because the limit is."""
+    chunks: List[bytes] = []
+    total = 0
+    async for chunk in response.aiter_bytes():
+        room = limit - total
+        if room <= 0:
+            break
+        if len(chunk) > room:
+            chunk = chunk[:room]
+        chunks.append(chunk)
+        total += len(chunk)
+        if total >= limit:
+            break
+    return b"".join(chunks)
 
 http_client: Optional[httpx.AsyncClient] = None
 
@@ -157,6 +187,21 @@ async def fetch_raw_page(url: str, user_agent: Optional[str] = None, head_only: 
                             detail=f"SSRF Protection: Exceeded maximum allowed HTTP redirects ({config.MAX_REDIRECTS} hops)."
                         )
                     continue
+
+                if response.status_code in _BOT_PROTECTION_CHECK_STATUS_CODES:
+                    peek_bytes = await _peek_body(response, _BOT_PROTECTION_PEEK_LIMIT)
+                    peek_text = peek_bytes.decode(response.encoding or "utf-8", errors="replace")
+                    if detect_bot_protection(peek_text, response.status_code):
+                        raise AppError(
+                            status_code=400,
+                            code=BOT_PROTECTION_DETECTED,
+                            detail=(
+                                f"Target appears to be behind bot/challenge protection "
+                                f"(HTTP {response.status_code}). This API fetches raw HTML "
+                                f"and does not execute JavaScript or solve challenges."
+                            ),
+                            retryable=False,
+                        )
 
                 response.raise_for_status()
                 status_code = response.status_code

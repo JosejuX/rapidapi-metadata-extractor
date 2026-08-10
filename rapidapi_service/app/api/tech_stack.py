@@ -33,6 +33,7 @@ async def extract_tech_stack(
         final_url=data["final_url"],
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
+        bot_protection_detected=data.get("bot_protection_detected", False),
         detected_technologies=data["detected_technologies"],
         technology_details=data.get("technology_details", [])
     )

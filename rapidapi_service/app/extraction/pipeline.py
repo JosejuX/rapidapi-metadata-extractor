@@ -37,6 +37,7 @@ from app.cache.singleflight import single_flight
 from app.core.errors import AppError
 from app.core.logging import logger
 from app.core.urls import normalize_and_validate_url
+from app.extraction.bot_protection import detect_bot_protection
 from app.extraction.contacts import extract_emails
 from app.extraction.jsonld import extract_json_ld, extract_rss_feeds
 from app.extraction.links import extract_links_and_socials
@@ -227,6 +228,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         # §13.4: Byte-level transparency
         "content_truncated": content_truncated,
         "bytes_downloaded": bytes_downloaded,
+        "bot_protection_detected": detect_bot_protection(html_content, status_code),
     }
 
     cache[cache_key] = {"data": response_data, "computed": FULL_PROFILE}
@@ -263,6 +265,7 @@ async def _fetch_and_extract_partial(
         "status_code": raw["status_code"],
         "content_truncated": raw["content_truncated"],
         "bytes_downloaded": raw["bytes_downloaded"],
+        "bot_protection_detected": detect_bot_protection(raw["html_content"], raw["status_code"]),
     }
 
     if entry is not None:
