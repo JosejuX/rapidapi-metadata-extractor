@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = Field(default=60, gt=0)
     RATE_LIMIT_TRACKER_MAXSIZE: int = Field(default=10000, gt=0)
 
-    APP_VERSION: str = "4.0.0"
+    APP_VERSION: str = "4.1.0"
 
     @field_validator("ALLOWED_ORIGINS")
     @classmethod

@@ -1,6 +1,6 @@
 <div align="center">
 
-  ![Web Metadata & Contact Extractor API](assets/banner.png)
+  ![Turn any URL into structured intelligence — Web Metadata, OpenGraph and Contact Extractor API](assets/banner.svg)
 
   # Turn any URL into structured intelligence.
 
@@ -10,7 +10,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
-  [![Version](https://img.shields.io/badge/Version-4.0.0-blueviolet.svg)]()
+  [![Version](https://img.shields.io/badge/Version-4.1.0-blueviolet.svg)]()
   [![Rust ORJSON](https://img.shields.io/badge/JSON%20Engine-Rust%20ORJSON-orange.svg)]()
   [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/)
   [![Response Time](https://img.shields.io/badge/Response%20Time-%3C200ms-brightgreen.svg)]()
@@ -26,7 +26,9 @@
 
 **Paste a URL, get real results in seconds** — [rapidapi-metadata-extractor.onrender.com](https://rapidapi-metadata-extractor.onrender.com/) runs the actual pipeline live, no API key needed. Try your own site, or one of these:
 
-[![Analyze github.com](https://img.shields.io/badge/Analyze-github.com-38bdf8?logo=github)](https://rapidapi-metadata-extractor.onrender.com/api/v1/extract?url=github.com) [![Analyze stripe.com](https://img.shields.io/badge/Analyze-stripe.com-635bff)](https://rapidapi-metadata-extractor.onrender.com/api/v1/extract?url=stripe.com) [![Analyze wikipedia.org](https://img.shields.io/badge/Analyze-wikipedia.org-000000)](https://rapidapi-metadata-extractor.onrender.com/api/v1/extract?url=wikipedia.org)
+[![Analyze buffer.com](https://img.shields.io/badge/Analyze-buffer.com-f472b6)](https://rapidapi-metadata-extractor.onrender.com/demo/extract?url=buffer.com) [![Analyze techcrunch.com](https://img.shields.io/badge/Analyze-techcrunch.com-22d3ee)](https://rapidapi-metadata-extractor.onrender.com/demo/extract?url=techcrunch.com) [![Analyze basecamp.com](https://img.shields.io/badge/Analyze-basecamp.com-fbbf24)](https://rapidapi-metadata-extractor.onrender.com/demo/extract?url=basecamp.com)
+
+> `/demo/extract` is the same no-key route the live demo page above uses (see "Honest Limitations" — it's rate-limited per IP, not a documented/stable API endpoint). For integrating in code, use `/api/v1/extract` with a RapidAPI key as shown below.
 
 **Or call it directly** (swap in your key from RapidAPI for production use):
 
@@ -362,6 +364,19 @@ uvicorn main:app --reload --port 8000
 ```
 
 Open `http://localhost:8000/docs` for the interactive Swagger UI.
+
+### Docker
+
+```bash
+# Pull the published image (built + pushed by .github/workflows/docker-publish.yml on every version tag)
+docker pull ghcr.io/josejux/rapidapi-metadata-extractor:latest
+docker run -p 8000:8000 ghcr.io/josejux/rapidapi-metadata-extractor:latest
+
+# Or build it yourself
+cd rapidapi_service
+docker build -t rapidapi-metadata-extractor .
+docker run -p 8000:8000 rapidapi-metadata-extractor
+```
 
 ---
 
