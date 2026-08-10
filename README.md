@@ -253,6 +253,12 @@ Open `http://localhost:8000/docs` for the interactive Swagger UI.
 
 ---
 
+## 🤝 Built With
+
+This API was built and iterated on in collaboration with AI coding assistants — Google's **Gemini 3.6 Flash** and Anthropic's **Claude Sonnet 5** — alongside human design, review, and testing decisions throughout.
+
+---
+
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
