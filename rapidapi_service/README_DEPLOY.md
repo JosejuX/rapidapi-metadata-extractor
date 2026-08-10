@@ -85,12 +85,14 @@ runtime bug later.
 |:---|:---|:---|
 | `RATE_LIMIT_PER_MINUTE` | `60` | Requests/minute per client IP. |
 | `CACHE_TTL_SECONDS` | `900` | How long extraction results stay cached. |
+| `PRODUCT_CACHE_TTL_SECONDS` | `180` | Shorter cache TTL specifically for responses whose `product_data` includes a price — a stale price is a worse problem than a stale `<title>`. |
 | `CACHE_MAXSIZE` | `5000` | Max number of cached URLs (L1, in-process). |
 | `MAX_REDIRECTS` | `5` | Redirect hops followed before giving up. |
 | `STREAM_SOFT_LIMIT` / `STREAM_HARD_LIMIT` | `65536` / `262144` | Adaptive byte-fetch limits (bytes) — see the Adaptive SPA Byte Limit feature. |
 | `MAX_CONCURRENT_REQUESTS_PER_HOST` | `6` | Outbound concurrency cap per target host. |
 | `TRUSTED_PROXY_IPS` | *(empty)* | Comma-separated CIDRs allowed to set `X-Forwarded-For` when `TRUST_PROXY=true`. |
 | `REDIS_URL` | *(unset)* | Enables distributed rate limiting across workers when set. |
+| `METRICS_SECRET` | *(unset)* | If set, `/metrics` requires an `X-Metrics-Secret` header matching it. Leave unset if `/metrics` is only reachable on a private network — set it if the port is exposed to the internet with no proxy-level protection in front of it. |
 
 ---
 

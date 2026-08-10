@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # --------------------------------------------------------------------------
     RAPIDAPI_PROXY_SECRET: Optional[str] = None
     HEALTH_DETAILS_SECRET: Optional[str] = None
+    # Plan feedback: /metrics being unauthenticated by default (standard
+    # Prometheus practice, network-level access control is the expected
+    # protection layer) is easy to accidentally expose if someone just
+    # `docker run`s this with the port published to the internet. Same
+    # opt-in-secret pattern as HEALTH_DETAILS_SECRET: unset by default
+    # (unchanged, still-open behavior), set it to require the header.
+    METRICS_SECRET: Optional[str] = None
 
     # Comma-separated origins for CORS, or "*" (kept as a raw string here;
     # parsed into ALLOWED_ORIGINS: List[str] below). Defaults to "*" — this
@@ -136,6 +143,7 @@ _settings = Settings()
 # --------------------------------------------------------------------------
 RAPIDAPI_PROXY_SECRET: Optional[str] = _settings.RAPIDAPI_PROXY_SECRET
 HEALTH_DETAILS_SECRET: Optional[str] = _settings.HEALTH_DETAILS_SECRET
+METRICS_SECRET: Optional[str] = _settings.METRICS_SECRET
 
 ALLOWED_ORIGINS: List[str] = (
     ["*"] if _settings.ALLOWED_ORIGINS.strip() == "*"
