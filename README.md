@@ -78,6 +78,32 @@
 
 ---
 
+## 🎯 What This API Is — And Isn't — For
+
+This API turns **a URL into structured knowledge about that page**: SEO/OpenGraph metadata, public contact signals, social profiles, tech stack, Schema.org/product data, graded security headers, link classification, and clean Markdown — consolidated into one fast HTTP request. It's a metadata/intelligence layer over ordinary server-rendered HTML, not a general-purpose scraping tool or a browser-automation replacement. Keep that framing in mind when deciding whether it fits your use case.
+
+**✅ Good fit:**
+
+- **Company/website analysis** — pull tech stack, CMS, socials, contact signals, and SEO health for a given site in one call.
+- **Input for a sales/outreach workflow** — `/api/v1/contacts` finds public emails/phones/social links present on a page; it's a raw signal you feed into a lead-gen process you build (company identification, role verification, CRM enrichment), not a lead-enrichment product by itself — see "Honest Limitations" below.
+- **Automated SEO audits** — the 13-point on-page score, structured `seo_checks` breakdown, and graded security-header audit are built for exactly this.
+- **Competitive/tech-stack monitoring** — compare tech stack, metadata, or product data across a known set of URLs over time. You supply and re-check the URL list; there's no built-in crawler (see below).
+- **AI agents / RAG pipelines** — `markdown_content` and the structured JSON fields are designed as clean LLM input, not raw HTML soup.
+- **E-commerce data extraction** — product name/price/currency/availability/brand/SKU/reviews where a site exposes Schema.org JSON-LD, OpenGraph product tags, or Microdata, cross-checked with a per-field confidence score. Product responses use a short 3-minute cache specifically because price data goes stale faster than everything else.
+- **Link previews** — title, description, image, favicon for chat apps, social cards, and bookmarking tools.
+
+**❌ Not a good fit:**
+
+- **Complex/interactive scraping** — logins, multi-step forms, button clicks, infinite scroll, CAPTCHA-gated content. This API issues one HTTP GET and parses the HTML it gets back; it does not drive a browser or simulate user interaction.
+- **Heavily JS-rendered sites** — if the meaningful content only exists after client-side hydration, this API sees close to the same empty shell a plain HTTP client would. The adaptive byte limit improves coverage of what the server already sent; it doesn't execute JavaScript.
+- **Mass or distributed crawling** — there's no queue, frontier, or "give me a domain and I'll find its pages" mode. It's one URL in, one page's data out, by design — kept stateless and fast rather than growing into a crawler.
+- **Penetration testing or vulnerability scanning** — the security-header audit grades the *presence and quality* of headers like HSTS, CSP, and X-Frame-Options. It does not probe for vulnerabilities, scan for misconfigurations beyond those headers, or constitute a security assessment. A high `security_score` means "this page sends good security headers," not "this site is secure."
+- **"Extract anything from any site" scraping** — this is a fixed set of well-defined extractors (SEO, contacts, socials, tech, product, links, Markdown), not a programmable scraper for arbitrary custom fields or page structures.
+
+For the technical reasoning behind these boundaries — why JS execution, crawling, and bot-protection bypass are out of scope, and what the confidence/quality scores do and don't mean — see "Honest Limitations" below.
+
+---
+
 ## ⚠️ Honest Limitations
 
 This API fetches raw HTTP responses and parses HTML — it is **not a browser**. That's a deliberate trade-off for speed (no browser startup, no JS execution wait, minimal memory per request), and it comes with real ceilings that no amount of additional regex or extractors can fully remove:
