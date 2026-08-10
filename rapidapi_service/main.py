@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
     description="Ultra-fast, enterprise REST API with Extended Metadata (robots, hreflang, OG, Product), Adaptive SPA Byte Limit, Async DNS (non-blocking), Error Message IP Sanitizer, Native IP Rate Limiter, DNS Caching, Early-Abort Streaming, Single-Source-of-Truth Scheme Shield, IP-Pinned Anti-SSRF, and Rust ORJSON serialization.",
-    version="2.8.0",
+    version="2.8.1",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
@@ -82,24 +82,25 @@ RAPIDAPI_PROXY_SECRET = os.getenv("RAPIDAPI_PROXY_SECRET", None)
 TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
 
 # ------------------------------------------------------------------------------
-# Application Rate Limiter (Distributed Redis or Native TTLCache Fallback)
+# Application Rate Limiter (Distributed Async Redis or Native TTLCache Fallback)
 # ------------------------------------------------------------------------------
 REDIS_URL = os.getenv("REDIS_URL", None)
 redis_client = None
 
 if REDIS_URL:
     try:
-        import redis
-        redis_client = redis.from_url(REDIS_URL)
-        logger.info("Distributed Redis Rate Limiter active: %s", REDIS_URL)
+        import redis.asyncio as redis
+        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        redis_hostname = urllib.parse.urlparse(REDIS_URL).hostname or "configured"
+        logger.info("Distributed Redis Rate Limiter active (Host: %s)", redis_hostname)
     except Exception as e:
         logger.warning("Redis initialization failed, falling back to in-memory TTLCache: %s", e)
 
 ip_rate_tracker: TTLCache = TTLCache(maxsize=10000, ttl=60)
 
-def check_ip_rate_limit(request: Request):
-    """Enforces 60 requests/minute limit per client IP address.
-    Uses distributed Redis when REDIS_URL is set (multi-worker/cluster),
+async def check_ip_rate_limit(request: Request):
+    """Enforces 60 requests/minute limit per client IP address asynchronously.
+    Uses non-blocking distributed Redis when REDIS_URL is set (multi-worker/cluster),
     falling back to in-memory TTLCache for single-instance deployments.
     """
     client_ip = request.client.host if request.client else "127.0.0.1"
@@ -112,13 +113,11 @@ def check_ip_rate_limit(request: Request):
     if redis_client:
         try:
             rate_key = f"rate:{client_ip}"
-            pipe = redis_client.pipeline()
-            pipe.incr(rate_key)
-            pipe.expire(rate_key, 60)
-            res = pipe.execute()
-            request_count = res[0]
-            if request_count > 60:
-                logger.warning("Redis Rate limit exceeded for IP: %s (%d req/min)", client_ip, request_count)
+            count = await redis_client.incr(rate_key)
+            if count == 1:
+                await redis_client.expire(rate_key, 60)
+            if count > 60:
+                logger.warning("Redis Rate limit exceeded for IP: %s (%d req/min)", client_ip, count)
                 raise HTTPException(
                     status_code=429,
                     detail="Rate limit exceeded: 60 requests per minute limit reached per client IP address."
@@ -1242,7 +1241,7 @@ def health_check():
     return {
         "status": "online",
         "service": "Web Metadata & Contact Extractor API",
-        "version": "2.8.0",
+        "version": "2.8.1",
         "engine": "FastAPI + ORJSON + Selectolax + HTTP/2 + Async DNS + Adaptive SPA Byte Limit + Sanitized IP-Pinned Security Shield",
         "rapidapi_protected": bool(RAPIDAPI_PROXY_SECRET),
         "trust_proxy": TRUST_PROXY
