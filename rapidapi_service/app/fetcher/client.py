@@ -10,7 +10,6 @@ directly (module-qualified), not a copy imported elsewhere.
 """
 import re
 import time
-import urllib.parse
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -20,6 +19,7 @@ from app.core.errors import (
     BOT_PROTECTION_DETECTED,
     CONNECTION_TIMEOUT,
     HEADERS_TOO_LARGE,
+    INVALID_URL,
     REDIRECT_LIMIT,
     TLS_ERROR,
     UNSUPPORTED_CONTENT_TYPE,
@@ -29,6 +29,7 @@ from app.core.errors import (
     AppError,
 )
 from app.core.logging import logger
+from app.core.urls import safe_urljoin
 from app.extraction.bot_protection import detect_bot_protection
 from app.fetcher import circuit_breaker
 from app.observability import metrics
@@ -178,7 +179,14 @@ async def fetch_raw_page(url: str, user_agent: Optional[str] = None, head_only: 
                     redirect_location = response.headers.get("location") or response.headers.get("Location")
                     if not redirect_location:
                         break
-                    current_url = urllib.parse.urljoin(current_url, redirect_location)
+                    joined = safe_urljoin(current_url, redirect_location)
+                    if joined is None:
+                        raise AppError(
+                            status_code=400,
+                            code=INVALID_URL,
+                            detail="SSRF Protection: Upstream sent a malformed redirect Location header."
+                        )
+                    current_url = joined
                     redirect_count += 1
                     if redirect_count > config.MAX_REDIRECTS:
                         raise AppError(
@@ -309,7 +317,6 @@ async def fetch_raw_page(url: str, user_agent: Optional[str] = None, head_only: 
         err_msg = str(e)
         if original_hostname:
             err_msg = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', original_hostname, err_msg)
-        logger.error("Fetch error for %s: %s", url, err_msg)
 
         # Best-effort classification of the underlying network failure (Plan §34).
         # Status code stays 400 for v1 backward compatibility — only the `error.code`
@@ -325,6 +332,22 @@ async def fetch_raw_page(url: str, user_agent: Optional[str] = None, head_only: 
             code = TLS_ERROR
         else:
             code = CONNECTION_TIMEOUT
+
+        # httpx's timeout exceptions frequently stringify to "" (e.g.
+        # ConnectTimeout raised with no message), which previously produced
+        # a useless "Unable to access target URL: " detail with nothing
+        # after the colon. Fall back to a description derived from the
+        # classification above so the message is always actionable.
+        if not err_msg.strip():
+            err_msg = {
+                CONNECTION_TIMEOUT: "Connection to the target server timed out.",
+                UPSTREAM_TIMEOUT: "The target server did not respond in time.",
+                UPSTREAM_4XX: "The target server returned a client error.",
+                UPSTREAM_5XX: "The target server returned a server error.",
+                TLS_ERROR: "A TLS/SSL error occurred while connecting to the target server.",
+            }.get(code, f"{type(e).__name__} with no further details.")
+
+        logger.error("Fetch error for %s: %s", url, err_msg)
 
         if original_hostname:
             circuit_breaker.record_failure(original_hostname, code)

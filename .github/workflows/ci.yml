@@ -92,7 +92,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r rapidapi_service/requirements.txt
-          pip install pytest
+          pip install pytest hypothesis
 
       - name: Run fixture-based test suite (SSRF matrix, circuit breaker,
           singleflight, host concurrency, observability, quality checks)
@@ -144,7 +144,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r rapidapi_service/requirements.txt
-          pip install pytest
+          pip install pytest hypothesis
 
       - name: Run Redis-dependent test suite (rate-limit atomicity, etc.)
         working-directory: rapidapi_service

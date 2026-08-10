@@ -1,9 +1,10 @@
 """JSON-LD structured-data and RSS/Atom feed discovery (Plan section 21)."""
 import json
-import urllib.parse
 from typing import Any, Dict, Iterator, List
 
 from selectolax.parser import HTMLParser
+
+from app.core.urls import safe_urljoin
 
 _MAX_GRAPH_DEPTH = 4  # Plan §21.1: bound nesting so a malicious/malformed
                        # JSON-LD payload can't make traversal unbounded.
@@ -60,5 +61,7 @@ def extract_rss_feeds(tree: HTMLParser, final_url: str) -> List[str]:
         if 'rss' in t_attr or 'atom' in t_attr or 'xml' in t_attr:
             href = link.attributes.get('href')
             if href:
-                rss_feeds.append(urllib.parse.urljoin(final_url, href))
+                joined = safe_urljoin(final_url, href)
+                if joined is not None:
+                    rss_feeds.append(joined)
     return rss_feeds

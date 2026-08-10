@@ -1,9 +1,10 @@
 """SEO/OpenGraph metadata extraction from an already-parsed HTML tree (Plan section 15)."""
 import re
-import urllib.parse
 from typing import Any, Dict, Optional
 
 from selectolax.parser import HTMLParser
+
+from app.core.urls import safe_urljoin, safe_urlparse
 
 FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$|^apple-touch-icon$', re.I)
 
@@ -49,14 +50,16 @@ def extract_metadata_fields(tree: HTMLParser, final_url: str, resp_headers: Dict
     canonical_url = None
     canonical_node = tree.css_first('link[rel="canonical"]')
     if canonical_node and canonical_node.attributes.get('href'):
-        canonical_url = urllib.parse.urljoin(final_url, canonical_node.attributes.get('href'))
+        canonical_url = safe_urljoin(final_url, canonical_node.attributes.get('href'))
 
     hreflang_tags = []
     for link in tree.css('link[hreflang]'):
         lang = link.attributes.get('hreflang')
         href = link.attributes.get('href')
         if lang and href and len(hreflang_tags) < 50:
-            hreflang_tags.append({'lang': lang, 'url': urllib.parse.urljoin(final_url, href)})
+            joined = safe_urljoin(final_url, href)
+            if joined is not None:
+                hreflang_tags.append({'lang': lang, 'url': joined})
 
     favicon = None
     for link in tree.css('link[rel]'):
@@ -64,10 +67,11 @@ def extract_metadata_fields(tree: HTMLParser, final_url: str, resp_headers: Dict
         if FAVICON_REL_REGEX.search(rel):
             href = link.attributes.get('href')
             if href:
-                favicon = urllib.parse.urljoin(final_url, href)
-                break
+                favicon = safe_urljoin(final_url, href)
+                if favicon is not None:
+                    break
     if not favicon:
-        favicon = urllib.parse.urljoin(final_url, "/favicon.ico")
+        favicon = safe_urljoin(final_url, "/favicon.ico")
 
     h1_tags = [h.text().strip() for h in tree.css('h1') if (h and h.text() and h.text().strip())]
     img_nodes = tree.css('img')
@@ -80,7 +84,7 @@ def extract_metadata_fields(tree: HTMLParser, final_url: str, resp_headers: Dict
     twitter_card = get_meta('twitter:card')
     h1_count = len(h1_tags)
 
-    final_domain = urllib.parse.urlparse(final_url).netloc.lower()
+    final_domain = safe_urlparse(final_url).netloc.lower()
     favicon_high_res = f"https://www.google.com/s2/favicons?domain={final_domain}&sz=128" if final_domain else None
 
     video_embed_code = None

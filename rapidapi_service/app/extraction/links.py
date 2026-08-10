@@ -7,6 +7,7 @@ import re
 import urllib.parse
 from typing import Any, Dict, List, Set
 
+from app.core.urls import safe_urljoin, safe_urlparse
 from app.extraction.social import SOCIAL_HOSTNAME_MAP, SOCIAL_PLATFORM_KEYS
 
 MAILTO_HREF_REGEX = re.compile(r'^mailto:', re.I)
@@ -20,7 +21,7 @@ def extract_links_and_socials(a_nodes, final_url: str) -> Dict[str, Any]:
     """`a_nodes` must be the SAME node list the caller already queried via
     `tree.css('a[href]')` — queried once in the pipeline and reused here and
     for `metadata.links_count`, per Plan §11 (parse/query once)."""
-    final_domain = urllib.parse.urlparse(final_url).netloc.lower()
+    final_domain = safe_urlparse(final_url).netloc.lower()
 
     social_links: Dict[str, Any] = {platform: None for platform in SOCIAL_PLATFORM_KEYS}
     internal_links: List[str] = []
@@ -37,8 +38,10 @@ def extract_links_and_socials(a_nodes, final_url: str) -> Dict[str, Any]:
             continue
 
         if not href.startswith('#') and not href.startswith('javascript:'):
-            full_link = urllib.parse.urljoin(final_url, href)
-            link_domain = urllib.parse.urlparse(full_link).netloc.lower()
+            full_link = safe_urljoin(final_url, href)
+            if full_link is None:
+                continue
+            link_domain = safe_urlparse(full_link).netloc.lower()
             if link_domain == final_domain or not link_domain:
                 if full_link not in internal_seen and len(internal_links) < MAX_INTERNAL_LINKS:
                     internal_seen.add(full_link)
