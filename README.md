@@ -249,6 +249,32 @@ curl --request GET \
 
 ---
 
+## 🤖 MCP / AI Agent Support
+
+This API is available as an [MCP](https://modelcontextprotocol.io/) server out of the box, via RapidAPI's hosted gateway — no extra setup or self-hosting needed. Add it to Claude Desktop, Claude Code, Cursor, or any MCP-compatible client:
+
+```json
+{
+  "mcpServers": {
+    "RapidAPI Hub - Web Metadata and Contact Extractor": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.rapidapi.com",
+        "--header",
+        "x-api-host: web-metadata-and-contact-extractor.p.rapidapi.com",
+        "--header",
+        "x-api-key: YOUR_RAPIDAPI_KEY_HERE"
+      ]
+    }
+  }
+}
+```
+
+Once connected, an agent can call the extractor directly as a tool — e.g. pulling `markdown_content` into a RAG pipeline, or checking `detected_technologies` and `seo_score_percentage` as part of an autonomous research/outreach workflow. Get a free key from the [RapidAPI listing](https://rapidapi.com/josejuanjocoding/api/web-metadata-and-contact-extractor) first.
+
+---
+
 ## 📊 Sample API Response (JSON)
 
 > [!NOTE]
