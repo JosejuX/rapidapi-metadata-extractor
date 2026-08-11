@@ -17,6 +17,7 @@
   [![Cache Speed](https://img.shields.io/badge/Cache%20Speed-0.01ms-flash.svg)]()
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
   [![CI](https://github.com/JosejuX/rapidapi-metadata-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/JosejuX/rapidapi-metadata-extractor/actions)
+  [![Keep Alive](https://github.com/JosejuX/rapidapi-metadata-extractor/actions/workflows/keep-alive.yml/badge.svg)](https://github.com/JosejuX/rapidapi-metadata-extractor/actions/workflows/keep-alive.yml)
 
   [🎮 **Try the Live Demo**](https://rapidapi-metadata-extractor.onrender.com/) • [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/josejuanjocoding/api/web-metadata-and-contact-extractor) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
 
