@@ -1,0 +1,17 @@
+name: Keep API Awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping health endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl /health
+        run: |
+          curl -sf -m 60 https://rapidapi-metadata-extractor.onrender.com/health \
+            && echo "OK" \
+            || echo "Ping failed (service may have been cold-starting) - not failing the job"
