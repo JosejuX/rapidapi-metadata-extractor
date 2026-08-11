@@ -12,13 +12,13 @@
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
   [![Version](https://img.shields.io/badge/Version-4.1.0-blueviolet.svg)]()
   [![Rust ORJSON](https://img.shields.io/badge/JSON%20Engine-Rust%20ORJSON-orange.svg)]()
-  [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/)
+  [![RapidAPI](https://img.shields.io/badge/RapidAPI-Available-0052CC.svg)](https://rapidapi.com/josejuanjocoding/api/web-metadata-and-contact-extractor)
   [![Response Time](https://img.shields.io/badge/Response%20Time-%3C200ms-brightgreen.svg)]()
   [![Cache Speed](https://img.shields.io/badge/Cache%20Speed-0.01ms-flash.svg)]()
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
   [![CI](https://github.com/JosejuX/rapidapi-metadata-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/JosejuX/rapidapi-metadata-extractor/actions)
 
-  [🎮 **Try the Live Demo**](https://rapidapi-metadata-extractor.onrender.com/) • [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
+  [🎮 **Try the Live Demo**](https://rapidapi-metadata-extractor.onrender.com/) • [🔑 Get Free API Key on RapidAPI](https://rapidapi.com/josejuanjocoding/api/web-metadata-and-contact-extractor) • [📖 API Documentation](#-api-endpoint-documentation) • [⚡ Code Examples](#-quick-start)
 
   ![Terminal demo: curl request and JSON response](assets/demo-terminal.svg)
 
