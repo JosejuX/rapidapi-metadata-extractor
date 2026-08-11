@@ -3,7 +3,7 @@
   "info": {
     "title": "Web Metadata & Contact Extractor API",
     "description": "Ultra-fast, enterprise REST API: Extended Metadata, Anti-SSRF Shield, Async Redis Rate Limiter (auto-reconnect + health observability), Multi-Worker Gunicorn, Favicon HD Engine, NLP Summary, HTTP/2, ORJSON.",
-    "version": "4.0.0"
+    "version": "4.1.0"
   },
   "paths": {
     "/health": {
@@ -12,7 +12,7 @@
           "Health"
         ],
         "summary": "Health Check",
-        "description": "Public liveness probe \u2014 exposes only service name and version.\nUse /health/details (requires HEALTH_DETAILS_SECRET header) for full operational status.",
+        "description": "Public liveness probe — exposes only service name and version.\nUse /health/details (requires HEALTH_DETAILS_SECRET header) for full operational status.",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -72,7 +72,7 @@
           "Full Extractor"
         ],
         "summary": "Extract Metadata",
-        "description": "Extract full metadata payload (<200ms with Rust ORJSON + IP-Pinned Anti-SSRF Shield + HTTP/2 streaming):\n- **SEO Metadata**: Title, description, OG image, favicon, canonical URL, language, author, theme color, H1 tags.\n- **Page Health Metrics**: Content length (bytes), image count, accessibility missing alt count, link count.\n- **Contacts**: Public email addresses and telephone numbers.\n- **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.\n- **Technologies**: Precision context-aware CMS and framework signatures.\n- **SEO Audit**: Automated 8-point SEO diagnostic score & warnings.\n- **Link Extractor**: Categorized internal vs external hyperlinks.\n- **Structured Data**: Schema.org JSON-LD schemas.\n- **Feeds**: RSS/Atom feed discovery.\n- **Security**: HTTP security headers score & IP-Pinned Anti-SSRF Protection.\n- **AI Reader**: Clean Markdown article text, word count & reading time.",
+        "description": "Extract full metadata payload (<200ms with Rust ORJSON + IP-Pinned Anti-SSRF Shield + HTTP/2 streaming):\n- **SEO Metadata**: Title, description, OG image, favicon, canonical URL, language, author, theme color, H1 tags.\n- **Page Health Metrics**: Content length (bytes), image count, accessibility missing alt count, link count.\n- **Contacts**: Public email addresses and telephone numbers.\n- **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.\n- **Technologies**: Precision context-aware CMS and framework signatures.\n- **SEO Audit**: Automated 14-point SEO diagnostic score & warnings.\n- **Link Extractor**: Categorized internal vs external hyperlinks.\n- **Structured Data**: Schema.org JSON-LD schemas.\n- **Feeds**: RSS/Atom feed discovery.\n- **Security**: HTTP security headers score & IP-Pinned Anti-SSRF Protection.\n- **AI Reader**: Clean Markdown article text, word count & reading time.\n\nWithout `fields`, runs the complete pipeline. With `fields`, only runs\nthe extractors needed for the requested keys — `fields=detected_technologies`\nis exactly as cheap as `GET /api/v1/tech-stack`.",
         "operationId": "extract_metadata_api_v1_extract_get",
         "parameters": [
           {
@@ -99,10 +99,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional comma-separated list of keys to filter response (e.g. metadata,contacts)",
+              "description": "Optional comma-separated list of keys to filter response (e.g. metadata,contacts) — only runs the extractors those fields actually need, same as calling the matching specialized endpoint",
               "title": "Fields"
             },
-            "description": "Optional comma-separated list of keys to filter response (e.g. metadata,contacts)"
+            "description": "Optional comma-separated list of keys to filter response (e.g. metadata,contacts) — only runs the extractors those fields actually need, same as calling the matching specialized endpoint"
           },
           {
             "name": "user_agent",
@@ -261,10 +261,10 @@
     "/api/v1/contacts": {
       "get": {
         "tags": [
-          "Lead Generation"
+          "Contact Discovery"
         ],
         "summary": "Extract Contacts",
-        "description": "Dedicated endpoint for lead enrichment & B2B prospecting:\nReturns public emails, telephone numbers, and official social media profile URLs.",
+        "description": "Dedicated endpoint for public contact-signal discovery:\nReturns public emails, telephone numbers, and official social media profile URLs\nfound on the page. This surfaces raw public signals, not verified company/people\ndata — it does not identify who these belong to or confirm they're monitored.",
         "operationId": "extract_contacts_api_v1_contacts_get",
         "parameters": [
           {
@@ -352,7 +352,7 @@
           "Tech Stack"
         ],
         "summary": "Extract Tech Stack",
-        "description": "Dedicated endpoint for technology intelligence & CMS auditing:\nDetects 100+ frameworks and CMS signatures with structural context-aware matching.",
+        "description": "Dedicated endpoint for technology intelligence & CMS auditing:\nDetects 40+ frameworks and CMS signatures with structural context-aware matching.",
         "operationId": "extract_tech_stack_api_v1_tech_stack_get",
         "parameters": [
           {
@@ -704,7 +704,7 @@
           "SEO Audit"
         ],
         "summary": "Extract Seo Audit",
-        "description": "Dedicated endpoint for automated SEO diagnostic audit:\nEvaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage, and HTTPS security.",
+        "description": "Dedicated endpoint for automated SEO diagnostic audit:\nEvaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage,\nHTTPS security, lang attribute, viewport, indexability, multiple-H1, Twitter Card, and structured data.",
         "operationId": "extract_seo_audit_api_v1_seo_audit_get",
         "parameters": [
           {
@@ -713,10 +713,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "The target URL to perform automated 8-point SEO diagnostic audit",
+              "description": "The target URL to perform automated 14-point SEO diagnostic audit",
               "title": "Url"
             },
-            "description": "The target URL to perform automated 8-point SEO diagnostic audit"
+            "description": "The target URL to perform automated 14-point SEO diagnostic audit"
           },
           {
             "name": "user_agent",
@@ -895,6 +895,11 @@
             "type": "number",
             "title": "Execution Time Ms"
           },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
+          },
           "emails": {
             "items": {
               "type": "string"
@@ -908,6 +913,14 @@
             },
             "type": "array",
             "title": "Phones"
+          },
+          "phone_details": {
+            "items": {
+              "$ref": "#/components/schemas/PhoneDetail"
+            },
+            "type": "array",
+            "title": "Phone Details",
+            "default": []
           },
           "social_links": {
             "additionalProperties": {
@@ -966,6 +979,11 @@
           "execution_time_ms": {
             "type": "number",
             "title": "Execution Time Ms"
+          },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
           },
           "title": {
             "anyOf": [
@@ -1078,6 +1096,11 @@
             "type": "number",
             "title": "Execution Time Ms"
           },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
+          },
           "total_links_count": {
             "type": "integer",
             "title": "Total Links Count"
@@ -1137,6 +1160,11 @@
             "type": "number",
             "title": "Execution Time Ms"
           },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
+          },
           "title": {
             "anyOf": [
               {
@@ -1193,6 +1221,52 @@
         ],
         "title": "MarkdownResponse"
       },
+      "PhoneDetail": {
+        "properties": {
+          "raw": {
+            "type": "string",
+            "title": "Raw"
+          },
+          "normalized": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "possible": {
+            "type": "boolean",
+            "title": "Possible",
+            "default": false
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "raw"
+        ],
+        "title": "PhoneDetail"
+      },
       "SchemaResponse": {
         "properties": {
           "url": {
@@ -1210,6 +1284,11 @@
           "execution_time_ms": {
             "type": "number",
             "title": "Execution Time Ms"
+          },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
           },
           "json_ld_count": {
             "type": "integer",
@@ -1250,6 +1329,11 @@
             "type": "number",
             "title": "Execution Time Ms"
           },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
+          },
           "security_score_percentage": {
             "type": "number",
             "title": "Security Score Percentage"
@@ -1267,6 +1351,14 @@
             },
             "type": "object",
             "title": "Security Headers"
+          },
+          "security_header_grades": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Security Header Grades",
+            "default": {}
           }
         },
         "type": "object",
@@ -1298,6 +1390,11 @@
             "type": "number",
             "title": "Execution Time Ms"
           },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
+          },
           "seo_score_percentage": {
             "type": "number",
             "title": "Seo Score Percentage"
@@ -1315,6 +1412,14 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/SeoCheck"
+            },
+            "type": "array",
+            "title": "Checks",
+            "default": []
           }
         },
         "type": "object",
@@ -1328,6 +1433,35 @@
           "warnings"
         ],
         "title": "SeoAuditResponse"
+      },
+      "SeoCheck": {
+        "properties": {
+          "check": {
+            "type": "string",
+            "title": "Check"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "check",
+          "passed",
+          "severity",
+          "evidence"
+        ],
+        "title": "SeoCheck"
       },
       "TechStackResponse": {
         "properties": {
@@ -1347,6 +1481,11 @@
             "type": "number",
             "title": "Execution Time Ms"
           },
+          "bot_protection_detected": {
+            "type": "boolean",
+            "title": "Bot Protection Detected",
+            "default": false
+          },
           "detected_technologies": {
             "items": {
               "type": "string"
@@ -1356,8 +1495,7 @@
           },
           "technology_details": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/TechnologyDetail"
             },
             "type": "array",
             "title": "Technology Details",
@@ -1373,6 +1511,38 @@
           "detected_technologies"
         ],
         "title": "TechStackResponse"
+      },
+      "TechnologyDetail": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence",
+            "default": []
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "confidence",
+          "category"
+        ],
+        "title": "TechnologyDetail"
       },
       "ValidationError": {
         "properties": {
@@ -1397,6 +1567,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

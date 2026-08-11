@@ -236,7 +236,7 @@ HOME_HTML = """
                 </div>
 
                 <div class="detail-block">
-                    <h3>SEO audit — 13-point check</h3>
+                    <h3>SEO audit — 14-point check</h3>
                     <div id="seoChecks"></div>
                 </div>
 

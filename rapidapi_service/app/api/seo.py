@@ -20,12 +20,13 @@ router = APIRouter(tags=["SEO Audit"])
     dependencies=[Depends(check_ip_rate_limit), Depends(verify_rapidapi_secret)],
 )
 async def extract_seo_audit(
-    url: str = Query(..., description="The target URL to perform automated 13-point SEO diagnostic audit"),
+    url: str = Query(..., description="The target URL to perform automated 14-point SEO diagnostic audit"),
     user_agent: Optional[str] = Query(None, description="Optional custom User-Agent header")
 ):
     """
     Dedicated endpoint for automated SEO diagnostic audit:
-    Evaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage, and HTTPS security.
+    Evaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage,
+    HTTPS security, lang attribute, viewport, indexability, multiple-H1, Twitter Card, and structured data.
     """
     data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_SEO)
     return SeoAuditResponse(

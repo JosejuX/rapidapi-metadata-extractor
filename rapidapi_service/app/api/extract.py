@@ -66,7 +66,7 @@ async def extract_metadata(
     - **Contacts**: Public email addresses and telephone numbers.
     - **Social Links**: Profiles on Twitter/X, LinkedIn, Instagram, Facebook, GitHub, YouTube, Telegram, TikTok.
     - **Technologies**: Precision context-aware CMS and framework signatures.
-    - **SEO Audit**: Automated 13-point SEO diagnostic score & warnings.
+    - **SEO Audit**: Automated 14-point SEO diagnostic score & warnings.
     - **Link Extractor**: Categorized internal vs external hyperlinks.
     - **Structured Data**: Schema.org JSON-LD schemas.
     - **Feeds**: RSS/Atom feed discovery.

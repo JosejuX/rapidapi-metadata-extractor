@@ -45,7 +45,7 @@ curl "https://web-metadata-and-contact-extractor.p.rapidapi.com/api/v1/extract?u
 |:---|:---|:---|
 | 🧲 | **Lead generation** | Find companies on a given tech stack (e.g. Shopify) with a weak SEO score, then prioritize outreach. |
 | 🤖 | **AI agents** | Feed `markdown_content` and structured JSON straight into an agent or RAG pipeline as clean, LLM-ready context for any URL. |
-| 🔎 | **SEO audits** | Run the 13-point on-page score plus graded security headers across a URL list, on a schedule. |
+| 🔎 | **SEO audits** | Run the 14-point on-page score plus graded security headers across a URL list, on a schedule. |
 | 🛒 | **Ecommerce** | Pull product name/price/currency/availability/brand from Schema.org, OpenGraph, and Microdata — cross-checked for conflicts. |
 | 🕵️ | **Competitive intelligence** | Track a competitor's tech stack, metadata, and product data over time by re-checking the same URL list. |
 
@@ -101,7 +101,7 @@ def read_url_as_markdown(url: str) -> str:
 | 🛠️ **40+ Tech Stack Detector** | WordPress, Shopify, WooCommerce, Webflow, React, Next.js, Vue, Angular, Svelte, TailwindCSS, Stripe, GA4, and more across CMS/ecommerce, frameworks, and analytics/payment/hosting categories. |
 | 📦 **Schema.org JSON-LD + Product Parser** | Parses all structured data schemas AND auto-extracts Product price, currency, availability, brand, rating and review count. |
 | 🎯 **Multi-Source Data Quality & Conflict Detection** | Product price/currency/availability/brand are cross-checked across three distinct structured encodings — JSON-LD, OpenGraph's product extension, and schema.org Microdata. `product_field_confidence` reports a per-field confidence score (more of these encodings agreeing = higher confidence, same philosophy as tech-stack detection) and which source won. When they genuinely disagree, a `SOURCE_CONFLICT` warning names the field, every value found, and which one was chosen and why. A top-level `quality` object (`score`, `rendered: false`, `sources_used`, `warnings`) summarizes response trustworthiness for programmatic consumers. **Caveat**: these three encodings often come from the same underlying product record on a given site, so agreement means "internally consistent," not "independently verified" — see Honest Limitations below. |
-| 📊 **On-Page SEO Health Audit Score** | 13-point automated on-page technical SEO diagnostic (0–100%) with actionable warnings list, plus a structured `seo_checks` breakdown (`check` id, `passed`, `severity`, `evidence`) for programmatic use. |
+| 📊 **On-Page SEO Health Audit Score** | 14-point automated on-page technical SEO diagnostic (0–100%) with actionable warnings list, plus a structured `seo_checks` breakdown (`check` id, `passed`, `severity`, `evidence`) for programmatic use. |
 | 🔗 **Internal vs External Link Classifier** | Categorizes up to 100 hyperlinks per page. |
 | 🤖 **AI & LLM Clean Markdown Reader** | Converts article text to clean Markdown for ChatGPT, Claude, RAG, and AI agents. Includes word count and reading time. |
 | 📡 **RSS / Atom Feed Discovery** | Auto-discovers RSS and Atom feed URLs. |
@@ -152,7 +152,7 @@ This API turns **a URL into structured knowledge about that page**: SEO/OpenGrap
 
 - **Company/website analysis** — pull tech stack, CMS, socials, contact signals, and SEO health for a given site in one call.
 - **Input for a sales/outreach workflow** — `/api/v1/contacts` finds public emails/phones/social links present on a page; it's a raw signal you feed into a lead-gen process you build (company identification, role verification, CRM enrichment), not a lead-enrichment product by itself — see "Honest Limitations" below.
-- **Automated SEO audits** — the 13-point on-page score, structured `seo_checks` breakdown, and graded security-header audit are built for exactly this.
+- **Automated SEO audits** — the 14-point on-page score, structured `seo_checks` breakdown, and graded security-header audit are built for exactly this.
 - **Competitive/tech-stack monitoring** — compare tech stack, metadata, or product data across a known set of URLs over time. You supply and re-check the URL list; there's no built-in crawler (see below).
 - **AI agents / RAG pipelines** — `markdown_content` and the structured JSON fields are designed as clean LLM input, not raw HTML soup.
 - **E-commerce data extraction** — product name/price/currency/availability/brand/SKU/reviews where a site exposes Schema.org JSON-LD, OpenGraph product tags, or Microdata, cross-checked with a per-field confidence score. Product responses use a short 3-minute cache specifically because price data goes stale faster than everything else.
@@ -305,7 +305,7 @@ curl --request GET \
 }
 ```
 
-> This response is exactly `MetadataResponse` (`app/models/responses.py`) serialized — every field shown above is real and every field the model defines is shown. There's no separate `content_truncated`/`bytes_downloaded` at the top level; that signal lives inside `quality.warnings`.
+> This response is exactly `MetadataResponse` (`app/models/responses.py`) serialized, trimmed for length — every field shown above is real. Four model fields aren't shown: `phone_details` and `product_field_confidence` (both empty here — no phone numbers or `product_data` on this page), `seo_checks` (the structured, per-check version of the `seo_passed_checks`/`seo_warnings` already shown above), and `external_links` (5 URLs, per `total_external_count`, omitted the same way `internal_links` is truncated). There's no separate `content_truncated`/`bytes_downloaded` at the top level; that signal lives inside `quality.warnings`.
 
 > Since v4.0.0, `metadata` also includes `viewport`, `twitter_card`, and `h1_count`; `/api/v1/tech-stack` additionally returns `technology_details` (confidence score, matched evidence, category per technology); and `product_data` (when present) includes `sku`, `mpn`, `gtin`/`isbn`, `seller`, `condition`, and price-range fields. All additions are purely additive — no existing field was removed or changed type. Fields that were previously untyped `Dict`/`List[Dict]` blobs (`metadata`, `technology_details`, `seo_checks`, `phone_details`) now have documented Pydantic models in the OpenAPI schema — with `product_data`, previously missing from `/api/v1/extract` despite being shown here, now actually returned. Also new: `product_field_confidence` and a top-level `quality` object — e.g. for a page where JSON-LD says €39.99 and OpenGraph says €29.99: `"product_field_confidence": {"price": {"value": "39.99", "confidence": 0.5, "source": "json_ld", "agreement": ["json_ld", "microdata", "opengraph"]}}` and `"quality": {"score": 0.9, "rendered": false, "sources_used": ["json_ld", "microdata", "opengraph", "meta"], "warnings": [{"field": "product.price", "type": "SOURCE_CONFLICT", "values": {"json_ld": "39.99", "microdata": "39.99", "opengraph": "29.99"}, "chosen_source": "json_ld", "chosen_value": "39.99"}]}`.
 
@@ -322,7 +322,7 @@ curl --request GET \
 | `/api/v1/schema` | `GET` | **Schema.org JSON-LD parser** — product prices, articles, events, organizations. |
 | `/api/v1/security` | `GET` | **Security headers audit** — HSTS, CSP, X-Frame-Options, Referrer Policy with percentage score. |
 | `/api/v1/markdown` | `GET` | **AI & LLM Markdown reader** — clean article text, word count, reading time. |
-| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 13-point audit score with warnings list plus structured `checks` (severity/evidence per check). |
+| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 14-point audit score with warnings list plus structured `checks` (severity/evidence per check). |
 | `/api/v1/links` | `GET` | **Link classifier** — internal vs external hyperlinks (up to 100 per page). |
 | `/health` | `GET` | **Health check** — status, version, protection mode. |
 | `/health/details` | `GET` | **Operational health** — Redis mode/status, trust-proxy config. Requires `X-Health-Secret` if `HEALTH_DETAILS_SECRET` is set. |

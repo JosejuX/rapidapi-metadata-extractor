@@ -25,7 +25,7 @@ async def extract_tech_stack(
 ):
     """
     Dedicated endpoint for technology intelligence & CMS auditing:
-    Detects 100+ frameworks and CMS signatures with structural context-aware matching.
+    Detects 40+ frameworks and CMS signatures with structural context-aware matching.
     """
     data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_TECH)
     return TechStackResponse(
