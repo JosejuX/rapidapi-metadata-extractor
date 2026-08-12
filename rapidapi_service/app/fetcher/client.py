@@ -16,7 +16,6 @@ import httpx
 
 from app import config
 from app.core.errors import (
-    BOT_PROTECTION_DETECTED,
     CONNECTION_TIMEOUT,
     HEADERS_TOO_LARGE,
     INVALID_URL,
@@ -200,16 +199,20 @@ async def fetch_raw_page(url: str, user_agent: Optional[str] = None, head_only: 
                     peek_bytes = await _peek_body(response, _BOT_PROTECTION_PEEK_LIMIT)
                     peek_text = peek_bytes.decode(response.encoding or "utf-8", errors="replace")
                     if detect_bot_protection(peek_text, response.status_code):
-                        raise AppError(
-                            status_code=400,
-                            code=BOT_PROTECTION_DETECTED,
-                            detail=(
-                                f"Target appears to be behind bot/challenge protection "
-                                f"(HTTP {response.status_code}). This API fetches raw HTML "
-                                f"and does not execute JavaScript or solve challenges."
-                            ),
-                            retryable=False,
-                        )
+                        # The target is up and responding — it's declining to serve a
+                        # non-browser client (WAF/CDN challenge), not a failure on our
+                        # end. Complete the fetch with the challenge page as content
+                        # instead of erroring, so this comes back 200 with
+                        # bot_protection_detected=true (computed downstream from this
+                        # same content/status, same as the mid-body detection path)
+                        # rather than counting as an API failure in the marketplace's
+                        # own error-rate stats for something the target site did.
+                        status_code = response.status_code
+                        final_url = current_url
+                        content_chunks = [peek_bytes]
+                        total_bytes = len(peek_bytes)
+                        circuit_breaker.record_success(original_hostname)
+                        break
 
                 response.raise_for_status()
                 status_code = response.status_code

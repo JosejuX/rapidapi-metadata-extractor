@@ -1,9 +1,11 @@
 """
-Bot-protection detection on the fetcher's error path (app/fetcher/client.py):
-a 403/429/503 response gets a small bounded body peek before raising, so a
-Cloudflare-style challenge page is classified as BOT_PROTECTION_DETECTED
-instead of the generic UPSTREAM_4XX/UPSTREAM_5XX — while a genuine outage
-(same status code, no challenge-page signature) still classifies normally.
+Bot-protection detection on the fetcher's success path (app/fetcher/client.py):
+a 403/429/503 response gets a small bounded body peek, so a Cloudflare-style
+challenge page completes as a normal 200-equivalent fetch (the challenge page
+becomes the content, downstream bot_protection_detected=true reports it) —
+the target site blocking us isn't our API failing, so it shouldn't surface as
+one in the marketplace's error-rate stats. A genuine outage (same status
+code, no challenge-page signature) still raises and classifies normally.
 
 Uses httpx.MockTransport so the real httpx response/streaming pipeline runs,
 matching test_security_hardening.py's approach.
@@ -15,7 +17,7 @@ import httpx
 import pytest
 
 import app.fetcher.client as fetcher_client
-from app.core.errors import AppError, BOT_PROTECTION_DETECTED, UPSTREAM_5XX
+from app.core.errors import AppError, UPSTREAM_5XX
 
 _CF_CHALLENGE_BODY = b"""<html><head><title>Just a moment...</title></head><body>
 <div class="cf-browser-verification">Checking your browser before accessing example.com.</div>
@@ -41,14 +43,13 @@ def _run_fetch(handler):
     return asyncio.run(_go())
 
 
-def test_cloudflare_challenge_503_is_classified_as_bot_protection():
+def test_cloudflare_challenge_503_completes_as_a_normal_fetch():
     def handler(request):
         return httpx.Response(503, headers={"content-type": "text/html"}, content=_CF_CHALLENGE_BODY)
 
-    with pytest.raises(AppError) as exc_info:
-        _run_fetch(handler)
-    assert exc_info.value.code == BOT_PROTECTION_DETECTED
-    assert exc_info.value.retryable is False
+    result = _run_fetch(handler)
+    assert result["status_code"] == 503
+    assert b"cf-browser-verification" in result["raw_bytes"]
 
 
 def test_genuine_503_outage_without_challenge_signature_is_unaffected():
@@ -61,13 +62,13 @@ def test_genuine_503_outage_without_challenge_signature_is_unaffected():
     assert exc_info.value.retryable is True
 
 
-def test_challenge_page_served_with_403_is_also_classified_as_bot_protection():
+def test_challenge_page_served_with_403_also_completes_as_a_normal_fetch():
     def handler(request):
         return httpx.Response(403, headers={"content-type": "text/html"}, content=_CF_CHALLENGE_BODY)
 
-    with pytest.raises(AppError) as exc_info:
-        _run_fetch(handler)
-    assert exc_info.value.code == BOT_PROTECTION_DETECTED
+    result = _run_fetch(handler)
+    assert result["status_code"] == 403
+    assert b"cf-browser-verification" in result["raw_bytes"]
 
 
 def test_ordinary_404_is_never_peeked_at_and_classifies_normally():
