@@ -133,7 +133,7 @@ async def fetch_and_extract_raw(
         # one result instead of triggering N upstream fetches.
         return await single_flight(cache_key, lambda: _fetch_and_extract_uncached(url, user_agent, head_only, cache_key))
 
-    return await _fetch_and_extract_partial(url, user_agent, head_only, cache_key, profile, entry)
+    return await _fetch_and_extract_partial(url, user_agent, head_only, cache_key, profile)
 
 
 async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_only: bool, cache_key: str) -> Dict[str, Any]:
@@ -288,11 +288,27 @@ async def _fetch_and_extract_partial(
     head_only: bool,
     cache_key: str,
     profile: frozenset,
-    entry: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Lazy path for specialized endpoints (Plan §12): fetch once (reusing a
     recent raw fetch if another profile for this same URL already triggered
-    one), then run only the extractor groups `profile` needs."""
+    one), then run only the extractor groups `profile` needs.
+
+    Concurrency note: this function `await`s (the raw fetch, or a
+    single-flight follower waiting on another in-flight fetch for the same
+    URL) before it ever touches the cache for the merge/write below. Two
+    concurrent requests for the same URL with different profiles are
+    therefore racing to write `cache[cache_key]` — whichever finishes last
+    must not clobber the other's freshly-cached groups. The cache entry is
+    deliberately re-read here, right before the merge, rather than reusing
+    the `entry` snapshot the caller looked up before this function's own
+    `await`s (that snapshot can be stale by the time this write happens, and
+    a naive merge against it silently drops whatever another concurrent
+    request already committed for this same URL — see
+    tests/test_lazy_extraction_profiles.py's concurrent-profile test). From
+    this re-read to the write below there is no further `await`, so under
+    asyncio's cooperative single-threaded scheduling no other coroutine can
+    interleave and this read-merge-write is effectively atomic.
+    """
     start_time = time.time()
 
     raw = _raw_page_cache.get(cache_key)
@@ -315,9 +331,13 @@ async def _fetch_and_extract_partial(
         "bot_protection_detected": detect_bot_protection(raw["html_content"], raw["status_code"]),
     }
 
-    if entry is not None:
-        merged_data = {**entry["data"], **base_fields, **new_fields}
-        merged_profile = entry["computed"] | profile
+    current_entry = cache.get(cache_key)
+    if current_entry is not None and _entry_expired(current_entry):
+        current_entry = None
+
+    if current_entry is not None:
+        merged_data = {**current_entry["data"], **base_fields, **new_fields}
+        merged_profile = current_entry["computed"] | profile
     else:
         merged_data = {**base_fields, **new_fields}
         merged_profile = profile
