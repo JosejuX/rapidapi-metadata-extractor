@@ -140,6 +140,59 @@ def test_different_narrow_profiles_accumulate_without_refetching():
     print("  [OK] tech + security accumulated into one cache entry from a single fetch")
 
 
+def test_concurrent_narrow_profiles_merge_without_clobbering():
+    """Two concurrent requests for the SAME url with DIFFERENT narrow
+    profiles (e.g. /tech-stack and /security fired back-to-back, as a test
+    harness exercising every endpoint against one sample URL would) must
+    both end up reflected in the cache entry's `computed` set — not just
+    whichever one wrote last.
+
+    Regression test for a lost-update race: `_fetch_and_extract_partial`
+    used to merge new fields into the `entry` snapshot the caller captured
+    *before* this function's own `await` (the upstream fetch / single-flight
+    wait). When two calls for the same cache_key overlap, the second to
+    finish used to write its own group on top of that stale (often None)
+    snapshot, silently discarding whatever the first call had just
+    committed. The visible symptom in production: whichever endpoint's
+    fields got dropped from the cache would fall back to a real re-fetch on
+    its next call, which — under real network conditions — could itself
+    fail (matching Zyla's "contacts/tech-stack/schema/security broken"
+    report), even though each individual concurrent request's own response
+    was correct at the time.
+    """
+    _reset_state()
+
+    async def _slow_transport_handler(request):
+        await asyncio.sleep(0.01)
+        return httpx.Response(200, headers={"content-type": "text/html"}, content=FIXTURE_HTML)
+
+    class SlowTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            return await _slow_transport_handler(request)
+
+    fetcher_client.http_client = httpx.AsyncClient(transport=SlowTransport())
+
+    async def go():
+        with mock.patch("app.fetcher.client.validate_url_ssrf", _fake_ssrf):
+            url = "https://lazy-fixture.ssrfcheck/concurrent-page"
+            return await asyncio.gather(
+                fetch_and_extract_raw(url, profile=PROFILE_TECH),
+                fetch_and_extract_raw(url, profile=PROFILE_SECURITY),
+            )
+
+    d1, d2 = asyncio.run(go())
+    assert "detected_technologies" in d1
+    assert "security_headers" in d2
+
+    cache_key = list(l1_cache.keys())[0]
+    entry = l1_cache[cache_key]
+    assert "tech" in entry["computed"], f"tech group lost from cache after concurrent race: {entry['computed']}"
+    assert "security" in entry["computed"], f"security group lost from cache after concurrent race: {entry['computed']}"
+    assert "detected_technologies" in entry["data"]
+    assert "security_headers" in entry["data"]
+    print("  [OK] concurrent tech + security requests both survive in the merged cache entry")
+
+
 def test_full_profile_never_reuses_a_partial_entry():
     """A prior narrow-profile cache entry must never satisfy a full request —
     /extract always gets the complete, unmodified pipeline output."""
@@ -189,6 +242,7 @@ if __name__ == "__main__":
         test_tech_profile_skips_unrelated_fields()
         test_narrow_profile_is_cached_and_hits_on_repeat()
         test_different_narrow_profiles_accumulate_without_refetching()
+        test_concurrent_narrow_profiles_merge_without_clobbering()
         test_full_profile_never_reuses_a_partial_entry()
         test_contacts_profile_also_satisfies_links_profile()
         print("\n[OK] ALL LAZY EXTRACTION PROFILE TESTS PASSED")
