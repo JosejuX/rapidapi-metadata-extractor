@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # Auth / proxy trust
     # --------------------------------------------------------------------------
     RAPIDAPI_PROXY_SECRET: Optional[str] = None
+    ZYLA_PROXY_SECRET: Optional[str] = None
     HEALTH_DETAILS_SECRET: Optional[str] = None
     # Plan feedback: /metrics being unauthenticated by default (standard
     # Prometheus practice, network-level access control is the expected
@@ -142,6 +143,7 @@ _settings = Settings()
 # derived/parsed from a raw settings field (documented per-field above).
 # --------------------------------------------------------------------------
 RAPIDAPI_PROXY_SECRET: Optional[str] = _settings.RAPIDAPI_PROXY_SECRET
+ZYLA_PROXY_SECRET: Optional[str] = _settings.ZYLA_PROXY_SECRET
 HEALTH_DETAILS_SECRET: Optional[str] = _settings.HEALTH_DETAILS_SECRET
 METRICS_SECRET: Optional[str] = _settings.METRICS_SECRET
 
