@@ -19,15 +19,15 @@ HOME_HTML = """
         <meta name="description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers &amp; AI-ready Markdown in one fast REST call. Free tier, no card required.">
         <meta name="robots" content="index, follow">
         <link rel="canonical" href="https://rapidapi-metadata-extractor.onrender.com/">
-        <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
-        <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
+        <link rel="icon" type="image/png" href="https://rapidapi-metadata-extractor.onrender.com/assets/logo.png">
+        <link rel="apple-touch-icon" href="https://rapidapi-metadata-extractor.onrender.com/assets/logo.png">
 
         <meta property="og:type" content="website">
         <meta property="og:site_name" content="Web Metadata & Contact Extractor API">
         <meta property="og:url" content="https://rapidapi-metadata-extractor.onrender.com/">
         <meta property="og:title" content="Web Metadata & Contact Extractor API — Live Demo">
         <meta property="og:description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers &amp; AI-ready Markdown in one fast REST call. Free tier, no card required.">
-        <meta property="og:image" content="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
+        <meta property="og:image" content="https://rapidapi-metadata-extractor.onrender.com/assets/logo.png">
         <meta property="og:image:width" content="500">
         <meta property="og:image:height" content="500">
         <meta property="og:image:type" content="image/png">
@@ -36,7 +36,7 @@ HOME_HTML = """
         <meta name="twitter:card" content="summary">
         <meta name="twitter:title" content="Web Metadata & Contact Extractor API — Live Demo">
         <meta name="twitter:description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers & AI-ready Markdown in one fast REST call.">
-        <meta name="twitter:image" content="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
+        <meta name="twitter:image" content="https://rapidapi-metadata-extractor.onrender.com/assets/logo.png">
 
         <script type="application/ld+json" nonce="__CSP_NONCE__">
         {
@@ -47,7 +47,7 @@ HOME_HTML = """
             "url": "https://rapidapi-metadata-extractor.onrender.com/",
             "applicationCategory": "DeveloperApplication",
             "operatingSystem": "Any (REST API)",
-            "image": "https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png",
+            "image": "https://rapidapi-metadata-extractor.onrender.com/assets/logo.png",
             "offers": {
                 "@type": "Offer",
                 "price": "0",

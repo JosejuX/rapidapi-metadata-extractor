@@ -21,6 +21,10 @@ rapidapi_service/load_test.py
 *.md
 *.yaml
 assets/
+# ...except the copy the running app actually serves (favicon / og:image) —
+# excludes the top-level marketing assets/ (banners, SVG sources) while
+# keeping rapidapi_service/assets/ in the build context.
+!rapidapi_service/assets/
 
 # Python virtual environments
 .venv

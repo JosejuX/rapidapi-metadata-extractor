@@ -4,9 +4,12 @@ into modules without changing behavior). All actual logic lives in the
 config / core / security / fetcher / cache / ratelimit / extraction / models /
 api / ui packages; this file just assembles the FastAPI app from them.
 """
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.api import (
@@ -64,6 +67,14 @@ app.middleware("http")(add_security_headers)
 # §34: structured error model — additive "error" object alongside the
 # existing "detail" string; status codes and "detail" are unchanged for v1.
 app.add_exception_handler(AppError, app_error_handler)
+
+# Branding assets (favicon, og:image) served same-origin rather than from an
+# external CDN — a live request during testing hit a transient 503 from
+# raw.githubusercontent.com, which would otherwise mean the favicon
+# silently disappears (or a social preview breaks) whenever GitHub's CDN
+# hiccups, for a single ~70KB file that's cheap to just ship in the image.
+_ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+app.mount("/assets", StaticFiles(directory=_ASSETS_DIR), name="assets")
 
 app.include_router(ui.router)
 app.include_router(demo.router)

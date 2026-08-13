@@ -12,7 +12,7 @@ from app.ui.templates import render_home
 router = APIRouter(include_in_schema=False)
 
 SITE_URL = "https://rapidapi-metadata-extractor.onrender.com"
-LOGO_URL = "https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png"
+LOGO_URL = "https://rapidapi-metadata-extractor.onrender.com/assets/logo.png"
 
 ROBOTS_TXT = f"""User-agent: *
 Allow: /

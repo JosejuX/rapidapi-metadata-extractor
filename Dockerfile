@@ -33,6 +33,7 @@ COPY --from=builder /install /usr/local
 # must be copied for `gunicorn main:app` to resolve.
 COPY rapidapi_service/main.py .
 COPY rapidapi_service/openapi.json .
+COPY rapidapi_service/assets ./assets
 COPY rapidapi_service/app ./app
 
 # §70: drop to non-root
