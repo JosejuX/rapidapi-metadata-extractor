@@ -1,12 +1,40 @@
 """Embedded playground UI route."""
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app.ui.templates import HOME_HTML
 
 router = APIRouter(include_in_schema=False)
 
+SITE_URL = "https://rapidapi-metadata-extractor.onrender.com"
+
+ROBOTS_TXT = f"""User-agent: *
+Allow: /
+
+Sitemap: {SITE_URL}/sitemap.xml
+"""
+
+SITEMAP_XML = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{SITE_URL}/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+"""
+
 
 @router.get("/", response_class=HTMLResponse)
 def home_ui():
     return HOME_HTML
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse)
+def robots_txt():
+    return ROBOTS_TXT
+
+
+@router.get("/sitemap.xml")
+def sitemap_xml():
+    return Response(content=SITEMAP_XML, media_type="application/xml")

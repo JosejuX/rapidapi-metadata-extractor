@@ -16,6 +16,51 @@ HOME_HTML = """
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Web Metadata & Contact Extractor API — Live Demo</title>
+        <meta name="description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers &amp; AI-ready Markdown in one fast REST call. Free tier, no card required.">
+        <meta name="robots" content="index, follow">
+        <link rel="canonical" href="https://rapidapi-metadata-extractor.onrender.com/">
+
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Web Metadata & Contact Extractor API">
+        <meta property="og:url" content="https://rapidapi-metadata-extractor.onrender.com/">
+        <meta property="og:title" content="Web Metadata & Contact Extractor API — Live Demo">
+        <meta property="og:description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers &amp; AI-ready Markdown in one fast REST call. Free tier, no card required.">
+        <meta property="og:image" content="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
+        <meta property="og:image:width" content="500">
+        <meta property="og:image:height" content="500">
+        <meta property="og:image:type" content="image/png">
+        <meta property="og:locale" content="en_US">
+
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="Web Metadata & Contact Extractor API — Live Demo">
+        <meta name="twitter:description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers & AI-ready Markdown in one fast REST call.">
+        <meta name="twitter:image" content="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
+
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Web Metadata & Contact Extractor API",
+            "description": "Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers and AI-ready Markdown in one fast REST call.",
+            "url": "https://rapidapi-metadata-extractor.onrender.com/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Any (REST API)",
+            "image": "https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "author": {
+                "@type": "Person",
+                "name": "Juanjo Renau"
+            },
+            "sameAs": [
+                "https://github.com/JosejuX/rapidapi-metadata-extractor",
+                "https://rapidapi.com/josejuanjocoding/api/web-metadata-and-contact-extractor"
+            ]
+        }
+        </script>
         <style>
             :root {
                 --bg: #09080f;
