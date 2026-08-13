@@ -1,12 +1,13 @@
 """Embedded playground UI route."""
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
 from app.ui.templates import render_home
 
 router = APIRouter(include_in_schema=False)
 
 SITE_URL = "https://rapidapi-metadata-extractor.onrender.com"
+LOGO_URL = "https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png"
 
 ROBOTS_TXT = f"""User-agent: *
 Allow: /
@@ -42,3 +43,11 @@ def robots_txt():
 @router.get("/sitemap.xml")
 def sitemap_xml():
     return Response(content=SITEMAP_XML, media_type="application/xml")
+
+
+@router.get("/favicon.ico")
+def favicon():
+    # Browsers request this path directly regardless of the <link rel="icon">
+    # tag in <head>; redirect rather than proxy so we don't need a static-file
+    # mount for one asset that's already public on GitHub.
+    return RedirectResponse(url=LOGO_URL, status_code=308)
