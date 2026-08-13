@@ -36,7 +36,7 @@ HOME_HTML = """
         <meta name="twitter:description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers & AI-ready Markdown in one fast REST call.">
         <meta name="twitter:image" content="https://raw.githubusercontent.com/JosejuX/rapidapi-metadata-extractor/main/assets/logo.png">
 
-        <script type="application/ld+json">
+        <script type="application/ld+json" nonce="__CSP_NONCE__">
         {
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
@@ -61,7 +61,7 @@ HOME_HTML = """
             ]
         }
         </script>
-        <style>
+        <style nonce="__CSP_NONCE__">
             :root {
                 --bg: #09080f;
                 --bg-blob-a: rgba(167, 139, 250, 0.16);
@@ -361,7 +361,7 @@ HOME_HTML = """
             </footer>
         </div>
 
-        <script>
+        <script nonce="__CSP_NONCE__">
             let lastData = null;
 
             function clearChildren(el) { while (el.firstChild) el.removeChild(el.firstChild); }
@@ -699,3 +699,11 @@ HOME_HTML = """
     </body>
     </html>
     """
+
+
+def render_home(nonce: str) -> str:
+    """Inject the per-request CSP nonce into the embedded <style>/<script>
+    tags. A plain .replace() rather than .format()/f-string on the whole
+    template deliberately avoids having to escape the large literal CSS
+    block's own curly braces."""
+    return HOME_HTML.replace("__CSP_NONCE__", nonce)
