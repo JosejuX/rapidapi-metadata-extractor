@@ -27,6 +27,7 @@ from app.api import (
 from app.core.errors import AppError, app_error_handler
 from app.core.tracing import add_request_id
 from app.lifecycle import lifespan
+from app.security.response_headers import add_security_headers
 
 app = FastAPI(
     title="Web Metadata & Contact Extractor API",
@@ -55,6 +56,10 @@ app.add_middleware(
 # §32/40: X-Request-ID middleware — generate or preserve an inbound request ID
 # for end-to-end tracing across logs, responses and monitoring.
 app.middleware("http")(add_request_id)
+
+# §69: baseline security response headers (CSP, HSTS, X-Frame-Options, etc.)
+# on every response, API and UI alike.
+app.middleware("http")(add_security_headers)
 
 # §34: structured error model — additive "error" object alongside the
 # existing "detail" string; status codes and "detail" are unchanged for v1.
