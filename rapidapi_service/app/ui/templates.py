@@ -18,6 +18,7 @@ HOME_HTML = """
         <title>Web Metadata & Contact Extractor API — Live Demo</title>
         <meta name="description" content="Turn any URL into structured data: SEO metadata, contacts, tech stack, security headers &amp; AI-ready Markdown in one fast REST call. Free tier, no card required.">
         <meta name="robots" content="index, follow">
+        <meta name="google-site-verification" content="2u6zsBi7uQUAV0BGbX2PUiOpniskmBuRLoUdqkyx34I" />
         <link rel="canonical" href="https://rapidapi-metadata-extractor.onrender.com/">
         <link rel="icon" type="image/png" href="https://rapidapi-metadata-extractor.onrender.com/assets/logo.png">
         <link rel="apple-touch-icon" href="https://rapidapi-metadata-extractor.onrender.com/assets/logo.png">
