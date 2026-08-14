@@ -9,6 +9,10 @@ per-IP rate limiter. Every value rendered here comes from a live response,
 not sample data.
 """
 
+import math
+from html import escape as _esc
+from urllib.parse import urlparse
+
 HOME_HTML = """
     <!DOCTYPE html>
     <html lang="en">
@@ -268,74 +272,74 @@ HOME_HTML = """
             <div id="loading"><span class="spinner"></span><span>Fetching and analyzing the page in real time…</span></div>
             <div id="error"></div>
 
-            <div class="panel" id="results">
+            <div class="panel" id="results" style="__RESULTS_DISPLAY__">
                 <div class="res-meta">
-                    <span class="final-url" id="resUrl"></span>
+                    <span class="final-url" id="resUrl">__RES_URL__</span>
                     <span class="right">
-                        <span class="status-ok" id="resStatus">200 OK</span>
-                        <span class="exec-time" id="resTime"></span>
+                        <span class="status-ok" id="resStatus">__RES_STATUS__</span>
+                        <span class="exec-time" id="resTime">__RES_TIME__</span>
                     </span>
                 </div>
 
-                <div class="score-grid" id="scoreGrid"></div>
+                <div class="score-grid" id="scoreGrid">__SCORE_GRID__</div>
 
                 <div class="detail-block">
                     <h3>Metadata</h3>
-                    <p class="meta-title" id="metaTitle"></p>
-                    <p class="meta-desc" id="metaDesc"></p>
-                    <div class="kv-list" id="metaKv" style="margin-top: 0.75rem"></div>
+                    <p class="meta-title" id="metaTitle">__META_TITLE__</p>
+                    <p class="meta-desc" id="metaDesc">__META_DESC__</p>
+                    <div class="kv-list" id="metaKv" style="margin-top: 0.75rem">__META_KV__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>SEO audit — 14-point check</h3>
-                    <div id="seoChecks"></div>
+                    <div id="seoChecks">__SEO_CHECKS__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>Technologies</h3>
-                    <div class="tag-row" id="techRow"></div>
+                    <div class="tag-row" id="techRow">__TECH_ROW__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>Social profiles</h3>
-                    <div class="tag-row" id="socialRow"></div>
+                    <div class="tag-row" id="socialRow">__SOCIAL_ROW__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>Contacts</h3>
-                    <div class="tag-row" id="contactsRow"></div>
+                    <div class="tag-row" id="contactsRow">__CONTACTS_ROW__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>Links on this page</h3>
                     <div class="two-col">
                         <div>
-                            <div class="kv-row"><span class="kv-label">Internal</span><span class="kv-value" id="internalCount"></span></div>
-                            <div class="link-list" id="internalLinks"></div>
+                            <div class="kv-row"><span class="kv-label">Internal</span><span class="kv-value" id="internalCount">__INTERNAL_COUNT__</span></div>
+                            <div class="link-list" id="internalLinks">__INTERNAL_LINKS__</div>
                         </div>
                         <div>
-                            <div class="kv-row"><span class="kv-label">External</span><span class="kv-value" id="externalCount"></span></div>
-                            <div class="link-list" id="externalLinks"></div>
+                            <div class="kv-row"><span class="kv-label">External</span><span class="kv-value" id="externalCount">__EXTERNAL_COUNT__</span></div>
+                            <div class="link-list" id="externalLinks">__EXTERNAL_LINKS__</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="detail-block">
                     <h3>Structured data &amp; feeds</h3>
-                    <div class="kv-list" id="structuredKv"></div>
+                    <div class="kv-list" id="structuredKv">__STRUCTURED_KV__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>AI-ready content</h3>
                     <p class="block-caption">This is <code>markdown_content</code> exactly as the API returns it — raw Markdown meant to be fed to an LLM or RAG pipeline, not rendered HTML. The <code>#</code>/<code>##</code> symbols are intentional.</p>
-                    <div class="kv-list" id="aiKv" style="margin-bottom: 0.75rem"></div>
-                    <div class="code-label"><span>markdown_content</span><span id="mdCharCount"></span></div>
-                    <div class="md-preview" id="mdPreview"></div>
+                    <div class="kv-list" id="aiKv" style="margin-bottom: 0.75rem">__AI_KV__</div>
+                    <div class="code-label"><span>markdown_content</span><span id="mdCharCount">__MD_CHAR_COUNT__</span></div>
+                    <div class="md-preview" id="mdPreview">__MD_PREVIEW__</div>
                 </div>
 
                 <div class="detail-block">
                     <h3>Data quality &amp; signals</h3>
-                    <div class="tag-row" id="qualityRow"></div>
+                    <div class="tag-row" id="qualityRow">__QUALITY_ROW__</div>
                 </div>
 
                 <div class="actions">
@@ -704,9 +708,305 @@ HOME_HTML = """
     """
 
 
-def render_home(nonce: str) -> str:
+def _safe_http_url(value) -> bool:
+    try:
+        return urlparse(str(value)).scheme in ("http", "https")
+    except Exception:
+        return False
+
+
+def _tag_span(text) -> str:
+    return f'<span class="tag">{_esc(str(text))}</span>'
+
+
+def _muted_span(text: str) -> str:
+    return f'<span class="tag muted">{_esc(text)}</span>'
+
+
+def _kv_row(label: str, value) -> str:
+    return (
+        f'<div class="kv-row"><span class="kv-label">{_esc(label)}</span>'
+        f'<span class="kv-value">{_esc(str(value))}</span></div>'
+    )
+
+
+def _badge(text: str, tone: str = "") -> str:
+    cls = "badge" + (f" {tone}" if tone else "")
+    return f'<span class="{cls}">{_esc(text)}</span>'
+
+
+def _score_tone(pct: float) -> str:
+    if pct >= 80:
+        return "good"
+    if pct >= 50:
+        return "warn"
+    return "bad"
+
+
+_RING_CIRC = 2 * math.pi * 42
+_TONE_COLOR = {"good": "var(--good)", "warn": "var(--warn)", "bad": "var(--bad)"}
+
+
+def _ring_card(label: str, pct: float, caption: str) -> str:
+    tone = _score_tone(pct)
+    color = _TONE_COLOR[tone]
+    offset = _RING_CIRC * (1 - pct / 100)
+    return (
+        '<div class="score-card">'
+        f'<div class="k">{_esc(label)}</div>'
+        '<div class="ring-row"><div class="ring-wrap">'
+        '<svg viewBox="0 0 100 100">'
+        '<circle class="track" cx="50" cy="50" r="42"></circle>'
+        f'<circle class="fill" cx="50" cy="50" r="42" stroke="{color}" '
+        f'stroke-dasharray="{_RING_CIRC:.1f}" stroke-dashoffset="{offset:.1f}"></circle>'
+        "</svg>"
+        f'<div class="ring-num" style="color:{color}">{round(pct)}</div>'
+        "</div><div><div class=\"ring-caption\">"
+        f"{_esc(caption)}</div></div></div></div>"
+    )
+
+
+def _tile_card(label: str, value, color_var: str, soft_var: str, caption: str) -> str:
+    return (
+        '<div class="score-card">'
+        f'<div class="k">{_esc(label)}</div>'
+        '<div class="tile-row">'
+        f'<div class="tile-num" style="--tile-color:{color_var};--tile-soft:{soft_var}">{_esc(str(value))}</div>'
+        f'<div><div class="tile-caption">{_esc(caption)}</div></div>'
+        "</div></div>"
+    )
+
+
+def _check_row(check: dict) -> str:
+    passed = check.get("passed")
+    severity = check.get("severity", "")
+    tone = "good" if passed else ("bad" if severity == "critical" else "warn" if severity == "important" else "bad")
+    return (
+        f'<div class="check-row"><span class="check-dot {tone}"></span>'
+        f'<span class="check-text">{_esc(str(check.get("evidence", "")))}</span>'
+        f'<span class="check-sev">{_esc(severity)}</span></div>'
+    )
+
+
+def _link_list_html(urls, max_n: int = 6) -> str:
+    urls = urls or []
+    if not urls:
+        return _muted_span("None found")
+    parts = []
+    for u in urls[:max_n]:
+        href = f' href="{_esc(str(u))}"' if _safe_http_url(u) else ""
+        parts.append(f'<a class="link-item"{href} target="_blank" rel="noopener noreferrer">{_esc(str(u))}</a>')
+    return "".join(parts)
+
+
+_EMPTY_RESULT_TOKENS = {
+    "__RESULTS_DISPLAY__": "",
+    "__RES_URL__": "",
+    "__RES_STATUS__": "200 OK",
+    "__RES_TIME__": "",
+    "__SCORE_GRID__": "",
+    "__META_TITLE__": "",
+    "__META_DESC__": "",
+    "__META_KV__": "",
+    "__SEO_CHECKS__": "",
+    "__TECH_ROW__": "",
+    "__SOCIAL_ROW__": "",
+    "__CONTACTS_ROW__": "",
+    "__INTERNAL_COUNT__": "",
+    "__INTERNAL_LINKS__": "",
+    "__EXTERNAL_COUNT__": "",
+    "__EXTERNAL_LINKS__": "",
+    "__STRUCTURED_KV__": "",
+    "__AI_KV__": "",
+    "__MD_CHAR_COUNT__": "",
+    "__MD_PREVIEW__": "",
+    "__QUALITY_ROW__": "",
+}
+
+
+def _demo_result_tokens(data: dict) -> dict:
+    """Build the same visible strings analyzeUrl() renders client-side, as
+    plain (escaped) HTML, so the default demo result is present in the very
+    first server response instead of only appearing after a client-side
+    fetch resolves. Keeps the page's crawlable content non-empty regardless
+    of JS execution timing — the client script still runs on load and fully
+    overwrites this with a fresh live result for real users."""
+    metadata = data.get("metadata") or {}
+    contacts = data.get("contacts") or {}
+    quality = data.get("quality") or {}
+
+    tech_list = data.get("detected_technologies") or []
+    tech_details = data.get("technology_details") or []
+    social_entries = [(k, v) for k, v in (data.get("social_links") or {}).items() if v]
+    emails = contacts.get("emails") or []
+    phones = contacts.get("phones") or []
+    contacts_count = len(emails) + len(phones)
+    has_product = bool(data.get("product_data"))
+    seo = data.get("seo_score_percentage") or 0
+    sec = data.get("security_score_percentage") or 0
+
+    score_grid = "".join(
+        [
+            _ring_card(
+                "SEO",
+                seo,
+                "Strong on-page SEO" if seo >= 80 else "Room to improve" if seo >= 50 else "Weak on-page SEO",
+            ),
+            _tile_card(
+                "Technologies",
+                len(tech_list),
+                "var(--cyan)",
+                "var(--cyan-soft)",
+                ", ".join(tech_list[:2]) if tech_list else "None matched",
+            ),
+            _tile_card(
+                "Product data",
+                "✓" if has_product else "—",
+                "var(--emerald)" if has_product else "var(--muted-2)",
+                "var(--emerald-soft)" if has_product else "var(--surface-2)",
+                "Schema.org / OG product" if has_product else "Not a product page",
+            ),
+            _tile_card(
+                "Social",
+                len(social_entries),
+                "var(--pink)",
+                "var(--pink-soft)",
+                ", ".join(n for n, _ in social_entries[:3]) if social_entries else "No profiles linked",
+            ),
+            _tile_card(
+                "Contacts",
+                contacts_count,
+                "var(--amber)",
+                "var(--amber-soft)",
+                "Public email/phone found" if contacts_count else "None on this page",
+            ),
+            _ring_card(
+                "Security",
+                sec,
+                "Strong headers" if sec >= 80 else "Some headers missing" if sec >= 50 else "Weak security headers",
+            ),
+        ]
+    )
+
+    meta_kv = "".join(
+        [
+            _kv_row("Canonical", metadata.get("canonical_url") or "Not set"),
+            _kv_row("Language", metadata.get("language") or "Not detected"),
+            _kv_row("Robots", metadata.get("robots") or "Not set (defaults to index, follow)"),
+            _kv_row("Viewport", metadata.get("viewport") or "Not set"),
+            _kv_row("H1 headings", metadata.get("h1_count") or 0),
+            _kv_row(
+                "Images",
+                f'{metadata.get("images_count") or 0} total, {metadata.get("images_missing_alt_count") or 0} missing alt',
+            ),
+            _kv_row("Page size", f'{(metadata.get("content_length_bytes") or 0):,} bytes'),
+        ]
+    )
+
+    seo_checks = data.get("seo_checks") or []
+    seo_checks_html = "".join(_check_row(c) for c in seo_checks) if seo_checks else _muted_span("No checks available")
+
+    if tech_details:
+        tech_row = "".join(
+            f'<span class="tag">{_esc(str(t.get("name", "")))}<span class="tag conf">'
+            f'{round((t.get("confidence") or 0) * 100)}%</span></span>'
+            for t in tech_details
+        )
+    elif tech_list:
+        tech_row = "".join(_tag_span(t) for t in tech_list)
+    else:
+        tech_row = _muted_span("No known CMS/framework signatures matched")
+
+    if social_entries:
+        social_parts = []
+        for net, link in social_entries:
+            href_attr = f' href="{_esc(str(link))}"' if _safe_http_url(link) else ""
+            social_parts.append(
+                f'<a class="tag"{href_attr} target="_blank" rel="noopener noreferrer">{_esc(str(net).upper())}</a>'
+            )
+        social_row = "".join(social_parts)
+    else:
+        social_row = _muted_span("No profiles linked on this page")
+
+    if contacts_count:
+        contacts_row = "".join(_tag_span(e) for e in emails) + "".join(_tag_span(p) for p in phones)
+    else:
+        contacts_row = _muted_span("No public emails or phone numbers on this page")
+
+    schemas = data.get("json_ld_schemas") or []
+    schema_types = list(dict.fromkeys(s.get("@type") for s in schemas if s.get("@type")))
+    rss_feeds = data.get("rss_feeds") or []
+    structured_kv = (
+        _kv_row(
+            "JSON-LD schemas",
+            f'{len(schemas)} found ({", ".join(schema_types) or "unnamed type"})' if schemas else "None found",
+        )
+        + _kv_row("RSS / Atom feeds", f"{len(rss_feeds)} found" if rss_feeds else "None found")
+        + _link_list_html(rss_feeds, 5)
+    )
+
+    ai_kv = _kv_row("Word count", data.get("word_count") or 0) + _kv_row(
+        "Reading time", f'{data.get("reading_time_minutes") or 0} min'
+    )
+    markdown = data.get("markdown_content") or ""
+
+    quality_score = quality.get("score") or 0
+    quality_parts = [
+        _badge(
+            f"Quality score {round(quality_score * 100)}%",
+            "good" if quality_score >= 0.8 else "warn" if quality_score >= 0.5 else "bad",
+        ),
+        _badge(
+            "Bot protection detected" if data.get("bot_protection_detected") else "No bot protection detected",
+            "warn" if data.get("bot_protection_detected") else "good",
+        ),
+    ]
+    quality_parts += [_badge(f"source: {s}") for s in (quality.get("sources_used") or [])]
+    quality_parts += [
+        _badge(f'{w.get("type", "")}{": " + w["field"] if w.get("field") else ""}', "warn")
+        for w in (quality.get("warnings") or [])
+    ]
+
+    return {
+        "__RESULTS_DISPLAY__": "display:block",
+        "__RES_URL__": _esc(str(data.get("final_url") or data.get("url") or "")),
+        "__RES_STATUS__": _esc(f'{data.get("status_code", "")} OK'),
+        "__RES_TIME__": _esc(f'⚡ {data.get("execution_time_ms", "")} ms'),
+        "__SCORE_GRID__": score_grid,
+        "__META_TITLE__": _esc(metadata.get("title") or "Not detected"),
+        "__META_DESC__": _esc(metadata.get("description") or "Not detected"),
+        "__META_KV__": meta_kv,
+        "__SEO_CHECKS__": seo_checks_html,
+        "__TECH_ROW__": tech_row,
+        "__SOCIAL_ROW__": social_row,
+        "__CONTACTS_ROW__": contacts_row,
+        "__INTERNAL_COUNT__": str(data.get("total_internal_count") or 0),
+        "__INTERNAL_LINKS__": _link_list_html(data.get("internal_links"), 6),
+        "__EXTERNAL_COUNT__": str(data.get("total_external_count") or 0),
+        "__EXTERNAL_LINKS__": _link_list_html(data.get("external_links"), 6),
+        "__STRUCTURED_KV__": structured_kv,
+        "__AI_KV__": ai_kv,
+        "__MD_CHAR_COUNT__": f"{len(markdown):,} chars" if markdown else "",
+        "__MD_PREVIEW__": _esc(markdown) if markdown else _esc("No article-like content extracted from this page."),
+        "__QUALITY_ROW__": "".join(quality_parts) if quality_parts else _muted_span("No additional signals"),
+    }
+
+
+def render_home(nonce: str, demo_data: dict | None = None) -> str:
     """Inject the per-request CSP nonce into the embedded <style>/<script>
     tags. A plain .replace() rather than .format()/f-string on the whole
     template deliberately avoids having to escape the large literal CSS
-    block's own curly braces."""
-    return HOME_HTML.replace("__CSP_NONCE__", nonce)
+    block's own curly braces.
+
+    When demo_data is given (the pipeline's result dict for the default demo
+    URL), also bake a server-rendered snapshot of the results panel into the
+    page so crawlers and non-JS clients see real content immediately instead
+    of the empty placeholder — see _demo_result_tokens. Falls back to the
+    original empty placeholder if demo_data is None (e.g. the pipeline call
+    failed), so a slow/unreachable default target degrades to the previous
+    behavior rather than breaking the page."""
+    html_out = HOME_HTML.replace("__CSP_NONCE__", nonce)
+    tokens = _demo_result_tokens(demo_data) if demo_data else _EMPTY_RESULT_TOKENS
+    for token, value in tokens.items():
+        html_out = html_out.replace(token, value)
+    return html_out
