@@ -44,6 +44,8 @@ async def extract_contacts(
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         bot_protection_detected=data.get("bot_protection_detected", False),
+        redirect_count=data.get("redirect_count", 0),
+        is_shortened_url=data.get("is_shortened_url", False),
         emails=contacts["emails"],
         phones=contacts["phones"],
         phone_details=data.get("phone_details", []),

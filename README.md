@@ -123,6 +123,11 @@ def read_url_as_markdown(url: str) -> str:
 | 🐘 **Mastodon Social Detection** | Best-effort detection of the largest public Mastodon instances (mastodon.social, fosstodon.org, hachyderm.io, ...) alongside the existing 20 platforms — decentralization means a hostname map can't cover every self-hosted instance, so this is intentionally partial rather than a false-positive risk. |
 | 🚦 **Rate-Limit Response Headers** | Every response (success or `429`) now carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`, so clients can back off proactively instead of learning the limit by hitting `429`. |
 | 🛡️ **Bot-Protection Detection** | Cheap heuristic signature check (no extra requests, no JS execution) flags when the fetched page is a Cloudflare/Akamai/PerimeterX/CAPTCHA challenge page rather than real content — either as `bot_protection_detected: true` on a normal response, or as a specific `BOT_PROTECTION_DETECTED` error code (instead of a generic upstream error) when the challenge is served with a 403/429/503 status. Distinguishes "the target blocked this request" from "the target genuinely has no title/description" or "a real outage". |
+| 🔗 **Redirect Chain & Shortened-URL Detection** | Every response — every endpoint, not just `/extract` — now includes `redirect_count` (how many HTTP redirect hops were followed to reach `final_url`) and `is_shortened_url` (whether the URL you passed in is on a known shortener domain like `bit.ly`/`tinyurl.com`/`t.co`, checked against your original input, not `final_url`). |
+| 📖 **Readability Metrics & Full Heading Structure** | `/api/v1/seo-audit` and `/api/v1/extract` now include a `readability` object: `sentence_count`, `paragraph_count`, `avg_words_per_sentence`, and a full `heading_structure` breakdown (`h1` through `h6` counts) — simple regex/DOM-count heuristics, no NLP dependency. |
+| 📦 **Batch URL Processing** | `POST /api/v1/batch` runs a lightweight link-preview extraction over up to 10 URLs in a single request. Each URL is fetched independently — one failing URL returns `{"success": false, "error": ...}` for that item without affecting the rest of the batch. Counts as N requests (one per URL) against the per-IP rate limit, not one. |
+| 🔐 **Opt-In TLS Certificate Inspection** | `/api/v1/security?include_tls_details=true` performs a live TLS handshake to the target host and returns certificate issuer, subject, validity dates, and negotiated TLS version as `tls_details`. Off by default — it's an extra network round-trip beyond the normal headers-only audit — and any handshake failure (timeout, self-signed cert, non-TLS host) degrades to `tls_details: null` rather than breaking the response. |
+| 🌐 **DNS / WHOIS Domain Intelligence** | `GET /api/v1/domain` is a standalone endpoint that never fetches the target page — only DNS (A/AAAA/MX/NS/TXT via `dnspython`) and WHOIS (registrar, creation/expiration dates via `python-whois`) lookups against the hostname. A flaky/rate-limited WHOIS server degrades to `whois_info: null` instead of failing the whole request when DNS already succeeded. |
 
 ---
 
@@ -335,6 +340,8 @@ Once connected, an agent can call the extractor directly as a tool — e.g. pull
 > This response is exactly `MetadataResponse` (`app/models/responses.py`) serialized, trimmed for length — every field shown above is real. Four model fields aren't shown: `phone_details` and `product_field_confidence` (both empty here — no phone numbers or `product_data` on this page), `seo_checks` (the structured, per-check version of the `seo_passed_checks`/`seo_warnings` already shown above), and `external_links` (5 URLs, per `total_external_count`, omitted the same way `internal_links` is truncated). There's no separate `content_truncated`/`bytes_downloaded` at the top level; that signal lives inside `quality.warnings`.
 
 > Since v4.0.0, `metadata` also includes `viewport`, `twitter_card`, and `h1_count`; `/api/v1/tech-stack` additionally returns `technology_details` (confidence score, matched evidence, category per technology); and `product_data` (when present) includes `sku`, `mpn`, `gtin`/`isbn`, `seller`, `condition`, and price-range fields. All additions are purely additive — no existing field was removed or changed type. Fields that were previously untyped `Dict`/`List[Dict]` blobs (`metadata`, `technology_details`, `seo_checks`, `phone_details`) now have documented Pydantic models in the OpenAPI schema — with `product_data`, previously missing from `/api/v1/extract` despite being shown here, now actually returned. Also new: `product_field_confidence` and a top-level `quality` object — e.g. for a page where JSON-LD says €39.99 and OpenGraph says €29.99: `"product_field_confidence": {"price": {"value": "39.99", "confidence": 0.5, "source": "json_ld", "agreement": ["json_ld", "microdata", "opengraph"]}}` and `"quality": {"score": 0.9, "rendered": false, "sources_used": ["json_ld", "microdata", "opengraph", "meta"], "warnings": [{"field": "product.price", "type": "SOURCE_CONFLICT", "values": {"json_ld": "39.99", "microdata": "39.99", "opengraph": "29.99"}, "chosen_source": "json_ld", "chosen_value": "39.99"}]}`.
+>
+> Newest additions: every endpoint's response now also includes `redirect_count` (HTTP redirect hops followed to reach `final_url`) and `is_shortened_url` (`true` if the URL you passed in — not `final_url` — is on a known shortener domain like `bit.ly`). `/api/v1/seo-audit` and `/api/v1/extract` add a `readability` object (`sentence_count`, `paragraph_count`, `avg_words_per_sentence`, `heading_structure`). Three brand-new endpoints: `POST /api/v1/batch` (up to 10 URLs, lightweight link-preview extraction per URL), `GET /api/v1/domain` (DNS/WHOIS lookups, no page fetch), and `/api/v1/security?include_tls_details=true` (opt-in live TLS certificate inspection, off by default). All additive — no existing field changed shape or type.
 
 ---
 
@@ -349,8 +356,10 @@ Once connected, an agent can call the extractor directly as a tool — e.g. pull
 | `/api/v1/schema` | `GET` | **Schema.org JSON-LD parser** — product prices, articles, events, organizations. |
 | `/api/v1/security` | `GET` | **Security headers audit** — HSTS, CSP, X-Frame-Options, Referrer Policy with percentage score. |
 | `/api/v1/markdown` | `GET` | **AI & LLM Markdown reader** — clean article text, word count, reading time. |
-| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 14-point audit score with warnings list plus structured `checks` (severity/evidence per check). |
+| `/api/v1/seo-audit` | `GET` | **Automated SEO diagnostic** — 14-point audit score with warnings list plus structured `checks` (severity/evidence per check) and a `readability` breakdown (sentence/paragraph counts, avg words/sentence, full h1-h6 heading structure). |
 | `/api/v1/links` | `GET` | **Link classifier** — internal vs external hyperlinks (up to 100 per page). |
+| `/api/v1/batch` | `POST` | **Batch URL processing** — lightweight link-preview extraction over up to 10 URLs in one request (JSON body `{"urls": [...]}`), each fetched independently so one failure doesn't affect the rest. |
+| `/api/v1/domain` | `GET` | **DNS / WHOIS domain intelligence** — A/AAAA/MX/NS/TXT records plus registrar/creation/expiration WHOIS data for the target's hostname. Never fetches the page itself. |
 | `/health` | `GET` | **Health check** — status, version, protection mode. |
 | `/health/details` | `GET` | **Operational health** — Redis mode/status, trust-proxy config. Requires `X-Health-Secret` if `HEALTH_DETAILS_SECRET` is set. |
 | `/health/ready` | `GET` | **Readiness probe** — 200 once the HTTP client is initialized, 503 during startup. |
@@ -360,9 +369,10 @@ Once connected, an agent can call the extractor directly as a tool — e.g. pull
 
 | Parameter | Type | Required | Description |
 |:---|:---|:---|:---|
-| `url` | `string` | **Yes** | Target URL (e.g. `https://example.com`). Scheme-less inputs auto-normalized. |
-| `fields` | `string` | No | Comma-separated response filter (e.g. `metadata,contacts`). |
+| `url` | `string` | **Yes** | Target URL (e.g. `https://example.com`). Scheme-less inputs auto-normalized. Not used by `/api/v1/batch`, which takes a JSON body instead (`{"urls": [...]}`). |
+| `fields` | `string` | No | Comma-separated response filter (e.g. `metadata,contacts`). `/api/v1/extract` only. |
 | `user_agent` | `string` | No | Custom User-Agent header string. |
+| `include_tls_details` | `boolean` | No | `/api/v1/security` only. Opt-in live TLS handshake — returns certificate issuer/subject/validity/negotiated TLS version as `tls_details`. Off by default (`false`); adds a network round-trip beyond the normal headers-only audit. |
 
 ---
 

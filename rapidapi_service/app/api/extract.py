@@ -46,6 +46,11 @@ _FIELD_TO_GROUPS = {
     "word_count": {"markdown"},
     "reading_time_minutes": {"markdown"},
     "markdown_content": {"markdown"},
+    # readability is computed by both the "seo" and "markdown" groups (Plan
+    # competitive-differentiator #2) — "seo" is the cheaper of the two (no
+    # markdown-tree conversion), so that's what a bare `fields=readability`
+    # request runs.
+    "readability": {"seo"},
 }
 
 

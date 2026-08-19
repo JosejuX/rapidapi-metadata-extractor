@@ -8,6 +8,20 @@ from app.core.urls import safe_urljoin, safe_urlparse
 
 FAVICON_REL_REGEX = re.compile(r'^(shortcut )?icon$|^apple-touch-icon$', re.I)
 
+_HEADING_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6")
+
+
+def extract_heading_structure(tree: HTMLParser) -> Dict[str, int]:
+    """Full h1-h6 heading counts (competitive-differentiator #2), alongside
+    the h1-specific extraction in extract_metadata_fields() below. Kept as
+    its own standalone function (rather than folded into that dict) so
+    pipeline.py can call it against whichever tree is at hand — the shared
+    `tree` when the "metadata"/"seo" groups already parsed one, or a
+    "markdown" group's own md_tree, queried before html_to_markdown_clean()
+    mutates it — and assemble it into ReadabilityMetrics.heading_structure
+    without it also leaking into the Metadata response sub-object."""
+    return {tag: len(tree.css(tag)) for tag in _HEADING_TAGS}
+
 
 def extract_metadata_fields(tree: HTMLParser, final_url: str, resp_headers: Dict[str, str], links_count: int) -> Dict[str, Any]:
     title_node = tree.css_first('title')
