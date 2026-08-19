@@ -392,4 +392,5 @@ async def fetch_raw_page(url: str, user_agent: Optional[str] = None, head_only: 
         "bytes_downloaded": bytes_downloaded,
         "content_truncated": content_truncated,
         "clean_ua": clean_ua,
+        "redirect_count": redirect_count,
     }

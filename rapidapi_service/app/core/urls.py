@@ -8,6 +8,15 @@ from typing import Optional
 
 from app.core.errors import INVALID_URL, UNSUPPORTED_SCHEME, AppError
 
+# Competitive-differentiator #1: known URL-shortener hostnames — checked
+# against the *original* input url's own hostname (not final_url after
+# redirects resolve it), since the point is flagging "the caller handed us
+# a shortener link", not "the destination happens to look like one".
+KNOWN_URL_SHORTENER_HOSTS = frozenset({
+    "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd",
+    "buff.ly", "rebrand.ly", "cutt.ly", "shorturl.at", "tiny.cc",
+})
+
 
 def normalize_and_validate_url(url: str) -> str:
     """
@@ -86,3 +95,10 @@ def safe_urlparse(url: str) -> urllib.parse.ParseResult:
         return urllib.parse.urlparse(url)
     except ValueError:
         return urllib.parse.ParseResult("", "", "", "", "", "")
+
+
+def is_shortened_url(url: str) -> bool:
+    """True if `url`'s own hostname (the caller's original input, not
+    final_url after redirects) matches a known URL-shortener service."""
+    hostname = safe_urlparse(url).hostname
+    return bool(hostname) and hostname.lower() in KNOWN_URL_SHORTENER_HOSTS

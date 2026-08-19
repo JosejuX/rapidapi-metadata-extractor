@@ -35,6 +35,8 @@ async def extract_clean_markdown_article(
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         bot_protection_detected=data.get("bot_protection_detected", False),
+        redirect_count=data.get("redirect_count", 0),
+        is_shortened_url=data.get("is_shortened_url", False),
         title=meta["title"],
         word_count=data["word_count"],
         reading_time_minutes=data["reading_time_minutes"],

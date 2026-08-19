@@ -13,8 +13,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.api import (
+    batch,
     contacts,
     demo,
+    domain,
     extract,
     health,
     links,
@@ -89,3 +91,5 @@ app.include_router(security.router)
 app.include_router(markdown.router)
 app.include_router(seo.router)
 app.include_router(links.router)
+app.include_router(batch.router)
+app.include_router(domain.router)

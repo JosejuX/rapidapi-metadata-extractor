@@ -27,6 +27,7 @@ async def extract_seo_audit(
     Dedicated endpoint for automated SEO diagnostic audit:
     Evaluates Title tag, Meta Description, Canonical URL, H1 heading, OpenGraph image, Favicon, Image ALT coverage,
     HTTPS security, lang attribute, viewport, indexability, multiple-H1, Twitter Card, and structured data.
+    Also returns `readability`: sentence/paragraph counts, average words per sentence, and full h1-h6 heading structure.
     """
     data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_SEO)
     return SeoAuditResponse(
@@ -35,8 +36,11 @@ async def extract_seo_audit(
         status_code=data["status_code"],
         execution_time_ms=data["execution_time_ms"],
         bot_protection_detected=data.get("bot_protection_detected", False),
+        redirect_count=data.get("redirect_count", 0),
+        is_shortened_url=data.get("is_shortened_url", False),
         seo_score_percentage=data["seo_score_percentage"],
         passed_checks=data["seo_passed_checks"],
         warnings=data["seo_warnings"],
-        checks=data.get("seo_checks", [])
+        checks=data.get("seo_checks", []),
+        readability=data.get("readability"),
     )

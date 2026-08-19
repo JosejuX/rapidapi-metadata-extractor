@@ -4,11 +4,17 @@ NLP summary-snippet & top-keywords heuristic (Plan sections 26/27).
 No LLM in the hot path, per Plan §25/§118.
 """
 import re
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from selectolax.parser import HTMLParser
 
 MULTI_NEWLINE_REGEX = re.compile(r'\n{3,}')
+
+# Competitive-differentiator #2: readability metrics. Simple regex heuristics
+# on already-extracted text (clean_text or markdown_content) — no NLP
+# dependency, matching this module's existing no-LLM-in-the-hot-path stance.
+SENTENCE_SPLIT_REGEX = re.compile(r'(?<=[.!?])\s+')
+PARAGRAPH_SPLIT_REGEX = re.compile(r'\n\s*\n+')
 
 # §26: Unicode-aware word tokenizer. The old `[a-zA-Z]{3,15}` regex silently
 # dropped every accented/non-Latin word, which for Spanish/French/German/etc
@@ -132,3 +138,39 @@ def extract_summary_and_keywords(clean_text: str, description: Optional[str]) ->
     summary_snippet = " ".join(sentences[:2]) if sentences else (description or "")
 
     return summary_snippet, top_keywords
+
+
+def compute_readability_metrics(text: str) -> Dict[str, Any]:
+    """Sentence count, paragraph count, and average words/sentence (Plan
+    competitive-differentiator #2) from already-extracted text — simple
+    regex splitting, no new NLP dependency.
+
+    Works against either text source the pipeline has on hand:
+    - clean_text (the stripped-tags second parse used by contacts/summary
+      extraction): has no paragraph structure (body.text(separator=' ')
+      collapses everything to single-space-joined text), so paragraph_count
+      degrades to a single block there — a known heuristic limitation, same
+      spirit as this module's documented CJK-tokenization caveat above.
+    - markdown_content (html_to_markdown_clean()'s output): has real '\\n\\n'
+      paragraph boundaries from its per-<p>/<hN> line synthesis, so this is
+      the materially better source when it's already being computed anyway
+      (the "markdown" extraction group).
+    """
+    stripped = text.strip() if text else ""
+    if not stripped:
+        return {"sentence_count": 0, "paragraph_count": 0, "avg_words_per_sentence": 0.0}
+
+    sentences = [s for s in SENTENCE_SPLIT_REGEX.split(stripped) if s.strip()]
+    sentence_count = len(sentences) if sentences else 1
+
+    paragraphs = [p for p in PARAGRAPH_SPLIT_REGEX.split(stripped) if p.strip()]
+    paragraph_count = len(paragraphs) if paragraphs else 1
+
+    word_count = len(stripped.split())
+    avg_words_per_sentence = round(word_count / sentence_count, 2) if sentence_count > 0 else 0.0
+
+    return {
+        "sentence_count": sentence_count,
+        "paragraph_count": paragraph_count,
+        "avg_words_per_sentence": avg_words_per_sentence,
+    }

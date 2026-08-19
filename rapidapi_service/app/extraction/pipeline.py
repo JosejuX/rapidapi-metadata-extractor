@@ -36,13 +36,13 @@ from app.cache.negative import get_cached_negative, maybe_cache_negative
 from app.cache.singleflight import single_flight
 from app.core.errors import AppError
 from app.core.logging import logger
-from app.core.urls import normalize_and_validate_url
+from app.core.urls import is_shortened_url, normalize_and_validate_url
 from app.extraction.bot_protection import detect_bot_protection
 from app.extraction.contacts import extract_emails
 from app.extraction.jsonld import extract_json_ld, extract_rss_feeds
 from app.extraction.links import extract_links_and_socials
-from app.extraction.markdown import extract_summary_and_keywords, html_to_markdown_clean
-from app.extraction.metadata import extract_metadata_fields
+from app.extraction.markdown import compute_readability_metrics, extract_summary_and_keywords, html_to_markdown_clean
+from app.extraction.metadata import extract_heading_structure, extract_metadata_fields
 from app.extraction.phones import normalize_phones
 from app.extraction.product import extract_product_data
 from app.extraction.profiles import (
@@ -150,6 +150,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
     resp_headers = fetched["resp_headers"]
     bytes_downloaded = fetched["bytes_downloaded"]
     content_truncated = fetched["content_truncated"]
+    redirect_count = fetched["redirect_count"]
 
     # ONE HTML parse — every extractor below runs against this same tree.
     tree = HTMLParser(html_content)
@@ -159,6 +160,11 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
     a_nodes = tree.css('a[href]')
 
     metadata = extract_metadata_fields(tree, final_url, resp_headers, links_count=len(a_nodes))
+
+    # Competitive-differentiator #2: full heading structure, queried against
+    # `tree` BEFORE html_to_markdown_clean() mutates it below (that call must
+    # still run LAST per the existing ordering constraint).
+    heading_structure = extract_heading_structure(tree)
 
     link_data = extract_links_and_socials(a_nodes, final_url)
     social_links = link_data["social_links"]
@@ -221,6 +227,11 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
     # Markdown extraction mutates `tree` via strip_tags() — must run LAST.
     markdown_content, word_count, reading_time = html_to_markdown_clean(tree, final_url)
 
+    readability = {
+        **compute_readability_metrics(clean_text),
+        "heading_structure": heading_structure,
+    }
+
     execution_time = round((time.time() - start_time) * 1000, 2)
 
     bot_protection = detect_bot_protection(html_content, status_code)
@@ -240,7 +251,10 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         "final_url": final_url,
         "status_code": status_code,
         "execution_time_ms": execution_time,
+        "redirect_count": redirect_count,
+        "is_shortened_url": is_shortened_url(url),
         "metadata": metadata,
+        "readability": readability,
         "social_links": social_links,
         "contacts": {
             "emails": emails[:10],
@@ -329,6 +343,8 @@ async def _fetch_and_extract_partial(
         "content_truncated": raw["content_truncated"],
         "bytes_downloaded": raw["bytes_downloaded"],
         "bot_protection_detected": detect_bot_protection(raw["html_content"], raw["status_code"]),
+        "redirect_count": raw["redirect_count"],
+        "is_shortened_url": is_shortened_url(url),
     }
 
     current_entry = cache.get(cache_key)
@@ -440,6 +456,15 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
         fields["seo_warnings"] = warnings_seo
         fields["seo_checks"] = seo_checks
 
+        # Competitive-differentiator #2: "seo" always pulls in "metadata"
+        # (tree guaranteed non-None) and now also "seo" is in
+        # _CLEAN_TEXT_GROUPS (profiles.py), so clean_text is available here —
+        # reused, not a second extra parse.
+        fields["readability"] = {
+            **compute_readability_metrics(clean_text),
+            "heading_structure": extract_heading_structure(tree),
+        }
+
     if "summary_keywords" in profile:
         meta_for_summary = fields["metadata"]  # always pulled in via _GROUP_DEPS
         summary_snippet, top_keywords = extract_summary_and_keywords(clean_text, meta_for_summary["description"])
@@ -450,9 +475,23 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
         # Own fresh tree — markdown mutates it via strip_tags(), so it must
         # never be the shared `tree` other groups above already read from.
         md_tree = HTMLParser(html_content)
+        # Competitive-differentiator #2: heading structure queried BEFORE
+        # html_to_markdown_clean() mutates md_tree below.
+        md_heading_structure = extract_heading_structure(md_tree)
         markdown_content, word_count, reading_time = html_to_markdown_clean(md_tree, final_url)
         fields["markdown_content"] = markdown_content
         fields["word_count"] = word_count
         fields["reading_time_minutes"] = reading_time
+        # Overwrites the "seo" branch's `readability` (above) if both groups
+        # are requested together (e.g. a combined `fields=` request) — uses
+        # markdown_content rather than clean_text since it's already
+        # computed here and has real paragraph structure (see
+        # compute_readability_metrics()'s docstring), a strictly better
+        # source than falling back to a clean_text parse this group doesn't
+        # otherwise need.
+        fields["readability"] = {
+            **compute_readability_metrics(markdown_content),
+            "heading_structure": md_heading_structure,
+        }
 
     return fields

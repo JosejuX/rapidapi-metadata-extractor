@@ -25,7 +25,10 @@ the DOM or re-parsing per Plan §11/§64), not per-field:
 - security             extract_security_headers() — resp_headers only, no
                        tree at all (the biggest single win: /security skips
                        HTML parsing entirely)
-- seo                  run_seo_audit() — needs metadata + jsonld
+- seo                  run_seo_audit() — needs metadata + jsonld; also
+                       computes ReadabilityMetrics (sentence/paragraph
+                       counts, heading structure) using the clean-text
+                       second parse, same as summary_keywords below
 - summary_keywords     extract_summary_and_keywords() — needs metadata
                        (description) and the clean-text second parse
 - markdown             html_to_markdown_clean() — its own tree (mutates via
@@ -75,8 +78,13 @@ PROFILE_LINKS = expand_profile({"links_and_socials"})
 _TREE_GROUPS = frozenset({"metadata", "links_and_socials", "jsonld", "markdown"})
 # Groups that need the a[href] node list specifically.
 _A_NODES_GROUPS = frozenset({"metadata", "links_and_socials"})
-# Groups that need the stripped-tags clean-text second parse.
-_CLEAN_TEXT_GROUPS = frozenset({"contacts_emails", "summary_keywords"})
+# Groups that need the stripped-tags clean-text second parse. "seo" was
+# added alongside competitive-differentiator #2 (readability metrics): the
+# "seo" group's ReadabilityMetrics (sentence_count/avg_words_per_sentence)
+# needs the same clean_text "summary_keywords"/"contacts_emails" already use
+# — reused, not a second extra parse, since needs_clean_text() below just
+# gates one shared computation in pipeline.py's _compute_groups().
+_CLEAN_TEXT_GROUPS = frozenset({"contacts_emails", "summary_keywords", "seo"})
 
 
 def needs_tree(profile: frozenset) -> bool:
