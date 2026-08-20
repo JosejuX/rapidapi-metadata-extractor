@@ -41,7 +41,11 @@ from app.extraction.bot_protection import detect_bot_protection
 from app.extraction.contacts import extract_emails
 from app.extraction.jsonld import extract_json_ld, extract_rss_feeds
 from app.extraction.links import extract_links_and_socials
-from app.extraction.markdown import compute_readability_metrics, extract_summary_and_keywords, html_to_markdown_clean
+from app.extraction.markdown import (
+    compute_readability_metrics,
+    extract_summary_and_keywords,
+    html_to_markdown_clean,
+)
 from app.extraction.metadata import extract_heading_structure, extract_metadata_fields
 from app.extraction.phones import normalize_phones
 from app.extraction.product import extract_product_data
