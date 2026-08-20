@@ -203,7 +203,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
     product_warnings = detect_product_conflicts(product_field_sources)
     product_confidence = product_field_confidence(product_field_sources)
 
-    sec_headers, security_score, security_grades = extract_security_headers(resp_headers)
+    sec_headers, security_score, security_grades, security_explanations = extract_security_headers(resp_headers)
 
     passed_seo, warnings_seo, seo_score, seo_checks = run_seo_audit(
         title=metadata["title"],
@@ -275,6 +275,7 @@ async def _fetch_and_extract_uncached(url: str, user_agent: Optional[str], head_
         "security_headers": sec_headers,
         "security_score_percentage": security_score,
         "security_header_grades": security_grades,
+        "security_header_explanations": security_explanations,
         "seo_score_percentage": seo_score,
         "seo_passed_checks": passed_seo,
         "seo_warnings": warnings_seo,
@@ -431,10 +432,11 @@ def _compute_groups(raw: Dict[str, Any], profile: frozenset) -> Dict[str, Any]:
         fields["product_field_confidence"] = product_field_confidence(product_field_sources)
 
     if "security" in profile:
-        sec_headers, security_score, security_grades = extract_security_headers(resp_headers)
+        sec_headers, security_score, security_grades, security_explanations = extract_security_headers(resp_headers)
         fields["security_headers"] = sec_headers
         fields["security_score_percentage"] = security_score
         fields["security_header_grades"] = security_grades
+        fields["security_header_explanations"] = security_explanations
 
     if "seo" in profile:
         meta_for_seo = fields["metadata"]  # "seo" always pulls in "metadata" via _GROUP_DEPS

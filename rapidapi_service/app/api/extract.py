@@ -35,6 +35,7 @@ _FIELD_TO_GROUPS = {
     "security_headers": {"security"},
     "security_score_percentage": {"security"},
     "security_header_grades": {"security"},
+    "security_header_explanations": {"security"},
     "seo_score_percentage": {"seo"},
     "seo_passed_checks": {"seo"},
     "seo_warnings": {"seo"},

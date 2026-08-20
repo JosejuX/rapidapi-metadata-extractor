@@ -179,7 +179,8 @@ def test_summary_and_keywords_never_crashes(text):
 
 
 @given(st.dictionaries(
-    st.sampled_from(["strict-transport-security", "content-security-policy", "x-frame-options",
+    st.sampled_from(["strict-transport-security", "content-security-policy",
+                      "content-security-policy-report-only", "x-frame-options",
                       "x-content-type-options", "referrer-policy", "permissions-policy"]),
     st.text(max_size=300),
 ))

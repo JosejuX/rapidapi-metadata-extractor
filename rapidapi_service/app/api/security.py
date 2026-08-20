@@ -40,6 +40,7 @@ async def extract_security_headers_endpoint(
     """
     Dedicated endpoint for HTTP Security Headers audit:
     Inspects HSTS, Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and calculates a percentage security score.
+    A site running only `Content-Security-Policy-Report-Only` (rollout in progress, nothing blocked yet) is graded as its own distinct `"report-only"` state rather than being scored as missing or as an enforced policy — the raw value is returned additively as `content_security_policy_report_only`. Every graded header also comes with a one-line `security_header_explanations` entry describing why it matters.
     Set `include_tls_details=true` to additionally perform a live TLS handshake and return certificate details (issuer, subject, validity dates, negotiated TLS version) — off by default to keep the base audit headers-only and fast.
     """
     data = await fetch_and_extract_raw(url, user_agent, profile=PROFILE_SECURITY)
@@ -61,5 +62,6 @@ async def extract_security_headers_endpoint(
         security_score_percentage=data["security_score_percentage"],
         security_headers=data["security_headers"],
         security_header_grades=data.get("security_header_grades", {}),
+        security_header_explanations=data.get("security_header_explanations", {}),
         tls_details=tls_details,
     )

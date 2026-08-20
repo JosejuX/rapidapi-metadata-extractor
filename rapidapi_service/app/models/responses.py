@@ -247,6 +247,7 @@ class SecurityHeadersResponse(BaseModel):
     security_score_percentage: float
     security_headers: Dict[str, Optional[str]]
     security_header_grades: Dict[str, str] = {}
+    security_header_explanations: Dict[str, str] = {}
     tls_details: Optional[TlsCertificateDetails] = None
 
 
